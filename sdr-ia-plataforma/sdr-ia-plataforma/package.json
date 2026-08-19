@@ -12,7 +12,9 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "recharts": "^2.12.7",
-    "lucide-react": "^0.428.0"
+    "lucide-react": "^0.428.0",
+    "xlsx": "0.18.5",
+    "@vercel/postgres": "^0.10.0"
   },
   "devDependencies": {
     "tailwindcss": "^3.4.10",

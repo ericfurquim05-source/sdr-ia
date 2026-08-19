@@ -1,54 +1,100 @@
 import { NextResponse } from "next/server";
+import { acharContatoDaChamada, registrarFalha, registrarSucesso, processarProximoDaFila } from "@/lib/fila";
+
+export const maxDuration = 60;
 
 /*
  * ============================================================
  * AQUI ENTRA O WEBHOOK DA RETELL
  * ============================================================
- * Configure no painel da Retell (Webhooks) a URL:
+ * Configure no painel da Retell (Settings → Webhooks):
  *   https://SEU-PROJETO.vercel.app/api/retell/webhook
  *
- * A Retell envia um POST para esta rota a cada evento da chamada.
- * Recomendado em produção: validar a assinatura do cabeçalho
- * "x-retell-signature" antes de processar o evento.
+ * REGRA DE NEGÓCIO (validação de sucesso / filtro de caixa postal):
+ *   CONCLUIDA  → o cliente ATENDEU e a chamada durou MAIS de 13s
+ *   Falha      → não atendeu, erro de operadora, caixa postal
+ *                ou duração <= 13s  ⇒  TENTATIVAS + 1 e volta a
+ *                PENDENTE; na 7ª falha vira ESGOTADO (permanente).
+ *
+ * ENCADEAMENTO DA FILA:
+ *   Todo call_ended (sucesso ou falha) chama o worker para
+ *   discar o próximo PENDENTE — uma ligação por vez, sem cron.
  */
+
+// Duração mínima (exclusiva) para considerar conversa real
+const DURACAO_MINIMA_MS = 13000;
+
+// Motivos de desconexão da Retell que caracterizam falha
+// (não atendeu / caixa postal / erro), independentemente da duração
+const MOTIVOS_DE_FALHA = new Set([
+  "dial_no_answer",
+  "dial_busy",
+  "dial_failed",
+  "voicemail_reached",
+  "machine_detected",
+  "telephony_provider_unavailable",
+  "telephony_provider_permission_denied",
+  "no_valid_payment",
+  "error_llm_websocket_open",
+  "error_frontend_corrupted_payload",
+  "error_twilio",
+  "error_no_audio_received",
+  "error_asr",
+  "error_retell",
+  "error_unknown",
+]);
+
 export async function POST(request) {
-  const evento = await request.json();
+  const corpo = await request.json();
+  const evento = corpo.event;
+  const chamada = corpo.call ?? corpo.data ?? {};
 
-  switch (evento.event) {
+  switch (evento) {
     case "call_started":
-      // Chamada iniciada — atualizar status do contato para "Em ligação"
-      console.log("Chamada iniciada:", evento.call?.call_id);
+      // Ligação conectada na operadora — nada a fazer, aguardamos o desfecho.
       break;
 
-    case "call_ended":
-      // Chamada encerrada — dados principais para a aba "SDR IA":
-      //   evento.call.recording_url  -> URL do áudio (mini player)
-      //   evento.call.transcript     -> transcrição completa
-      //   evento.call.duration_ms    -> duração (para cobrar a minutagem)
-      //   evento.call.disconnection_reason -> ex.: "voicemail_reached"
-      //
-      // TODO: salvar no banco de dados (ex.: Supabase/Postgres) e
-      // debitar os minutos do saldo pré-pago do usuário.
-      console.log("Chamada encerrada:", evento.call?.call_id);
-      break;
+    case "call_ended": {
+      const contato = await acharContatoDaChamada(chamada.metadata, chamada.call_id);
+      if (!contato) break; // chamada avulsa (teste manual no painel, etc.)
 
-    case "call_analyzed":
-      // Análise pós-chamada — dados para o resumo e o calendário:
-      //   evento.call.call_analysis.call_summary   -> resumo da ligação
-      //   evento.call.call_analysis.user_sentiment -> sentimento do lead
-      //   evento.call.call_analysis.custom_analysis_data
-      //     -> campos personalizados definidos no agente, ex.:
-      //        { reuniao_agendada: true, data_reuniao: "2026-08-21T10:30" }
-      //
-      // TODO: se houver reunião agendada, criar o evento no calendário
-      // com origem "ia" (destaque violeta na interface).
-      console.log("Chamada analisada:", evento.call?.call_id);
+      const duracaoMs =
+        chamada.duration_ms ??
+        (chamada.end_timestamp && chamada.start_timestamp
+          ? chamada.end_timestamp - chamada.start_timestamp
+          : 0);
+      const motivo = chamada.disconnection_reason ?? "desconhecido";
+
+      const atendeu = !MOTIVOS_DE_FALHA.has(motivo);
+      const conversaReal = duracaoMs > DURACAO_MINIMA_MS; // ESTRITAMENTE > 13s
+
+      if (atendeu && conversaReal) {
+        // ✅ Sucesso: atendeu e conversou por mais de 13 segundos
+        await registrarSucesso(contato.id, `${motivo} (${Math.round(duracaoMs / 1000)}s)`);
+      } else {
+        // ❌ Caixa postal, queda rápida, não atendida ou erro
+        await registrarFalha(contato.id, `${motivo} (${Math.round(duracaoMs / 1000)}s)`);
+      }
+
+      // TODO: salvar recording_url e transcript para exibir na aba SDR IA.
+
+      // 🔁 Devolve a vez para a fila: disca o próximo PENDENTE
+      await processarProximoDaFila();
       break;
+    }
+
+    case "call_analyzed": {
+      // Resumo e análise pós-chamada da Retell.
+      // TODO: salvar call_analysis.call_summary e, se o agente marcar
+      // reunião (custom_analysis_data.reuniao_agendada), criar o evento
+      // no calendário com origem "ia".
+      break;
+    }
 
     default:
-      console.log("Evento não tratado:", evento.event);
+      break;
   }
 
-  // Sempre responder 200 rapidamente para a Retell não reenviar o evento
+  // Sempre 200 para a Retell não reenviar o evento
   return NextResponse.json({ recebido: true });
 }
