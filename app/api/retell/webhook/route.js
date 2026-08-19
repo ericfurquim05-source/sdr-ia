@@ -4,7 +4,7 @@ import {
   acharContatoDaChamada,
   registrarFalha,
   registrarSucesso,
-  processarProximoDaFila,
+  preencherVagas,
   pausarCampanha,
 } from "@/lib/fila";
 import { cobrarLigacao, saldoAtual } from "@/lib/saldo";
@@ -102,8 +102,8 @@ export async function POST(request) {
         break;
       }
 
-      // ---- 4. Devolve a vez para a fila ----
-      await processarProximoDaFila(clienteId);
+      // ---- 4. Libera a vaga: puxa o próximo da fila ----
+      await preencherVagas(clienteId);
       break;
     }
 
