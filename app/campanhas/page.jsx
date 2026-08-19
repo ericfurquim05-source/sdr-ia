@@ -11,7 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
-import { lerContatos } from "@/lib/planilha";
+import { lerContatos, formatarExibicao } from "@/lib/planilha";
 
 const agentes = [
   {
@@ -52,7 +52,7 @@ export default function Campanhas() {
         setResultado({
           erro: true,
           mensagem:
-            "Nenhum telefone válido encontrado. A planilha precisa das colunas nome e telefone.",
+            "Nenhum telefone válido encontrado. A planilha precisa de uma coluna com os telefones (DDD + número).",
         });
       }
     } catch {
@@ -75,7 +75,9 @@ export default function Campanhas() {
           totalContatos: contatos?.length ?? 0,
         }),
       });
-      setResultado(await resposta.json());
+      const dados = await resposta.json();
+      // Saldo insuficiente ou não autenticado vêm com erro do servidor
+      setResultado(resposta.ok ? dados : { erro: true, ...dados });
     } catch {
       setResultado({ erro: true, mensagem: "Não foi possível iniciar a campanha. Tente novamente." });
     } finally {
@@ -144,7 +146,9 @@ export default function Campanhas() {
                 <p className="truncate font-medium text-slate-200">{arquivo.name}</p>
                 <p className="text-sm text-slate-500">
                   {contatos !== null
-                    ? `${contatos.length} contatos prontos para ligar`
+                    ? `${contatos.length} contatos prontos para ligar${
+                        contatos.length ? ` · ex.: ${formatarExibicao(contatos[0].telefone)}` : ""
+                      }`
                     : "Lendo planilha..."}
                 </p>
               </div>

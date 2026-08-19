@@ -11,8 +11,8 @@ import {
   Wallet,
   Sparkles,
   Plus,
+  LogOut,
 } from "lucide-react";
-import { carteira } from "@/lib/dados";
 
 const itens = [
   { rotulo: "Dashboard", href: "/", icone: LayoutDashboard },
@@ -23,9 +23,15 @@ const itens = [
   { rotulo: "Carteira", href: "/carteira", icone: Wallet },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ cliente, saldo = 0 }) {
   const pathname = usePathname();
-  const minutos = Math.floor(carteira.saldo / carteira.precoMinuto);
+  const precoMinuto = Number(cliente?.preco_minuto ?? 1.5);
+  const minutos = Math.max(Math.floor(saldo / precoMinuto), 0);
+
+  const sair = async () => {
+    await fetch("/api/auth/sair", { method: "POST" });
+    window.location.href = "/login";
+  };
 
   return (
     <aside className="fixed inset-y-0 left-0 z-40 flex w-16 flex-col border-r border-white/5 bg-navy-900/90 backdrop-blur-xl lg:w-64">
@@ -69,12 +75,27 @@ export default function Sidebar() {
         })}
       </nav>
 
+      {/* Cliente logado */}
+      {cliente && (
+        <div className="hidden border-t border-white/5 px-4 py-3 lg:block">
+          <p className="truncate text-sm font-medium text-slate-200">
+            {cliente.empresa || cliente.nome}
+          </p>
+          <button
+            onClick={sair}
+            className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 transition hover:text-slate-300"
+          >
+            <LogOut size={12} /> Sair da conta
+          </button>
+        </div>
+      )}
+
       {/* Saldo pré-pago sempre à vista */}
       <div className="p-3 lg:p-4">
         <div className="hidden rounded-2xl border border-white/5 bg-navy-850 p-4 lg:block">
           <p className="text-[11px] uppercase tracking-widest text-slate-500">Saldo disponível</p>
           <p className="mt-1 font-display text-xl font-semibold text-white">
-            R$ {carteira.saldo.toFixed(2).replace(".", ",")}
+            R$ {Number(saldo).toFixed(2).replace(".", ",")}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">≈ {minutos} minutos de ligação</p>
           <Link href="/carteira" className="btn-primario mt-3 w-full text-xs">

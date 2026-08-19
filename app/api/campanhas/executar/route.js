@@ -1,53 +1,29 @@
 import { NextResponse } from "next/server";
+import { garantirTabelas, sql } from "@/lib/db";
+import { exigirCliente } from "@/lib/auth";
+import { podeIniciarCampanha } from "@/lib/saldo";
+import { processarProximoDaFila } from "@/lib/fila";
 
 export const maxDuration = 60;
 
 /*
  * ============================================================
- * AQUI ENTRA O DISPARO DE CAMPANHA NA RETELL AI
+ * EXECUTAR CAMPANHA — IMPORTA A PLANILHA PARA A FILA
  * ============================================================
- * O botão "Executar campanha" chama esta rota. Ela escolhe o
- * agente (ligação fria ou quente) e cria uma chamada telefônica
- * para cada contato da planilha, via API REST da Retell.
- *
- * Variáveis necessárias (.env.local / Vercel):
- *   RETELL_API_KEY, RETELL_AGENT_FRIO_ID,
- *   RETELL_AGENT_QUENTE_ID, RETELL_FROM_NUMBER
+ * 1. Exige cliente logado (a campanha é sempre de alguém).
+ * 2. BLOQUEIA na entrada se o saldo não cobrir a lista.
+ * 3. Grava os contatos como PENDENTE e disca o primeiro.
+ *    As ligações seguintes são encadeadas pelo webhook.
  */
 export async function POST(request) {
+  let cliente;
+  try {
+    cliente = await exigirCliente();
+  } catch {
+    return NextResponse.json({ erro: true, mensagem: "Faça login para executar campanhas." }, { status: 401 });
+  }
+
   const { tipoAgente, contatos = [] } = await request.json();
-
-  const agentId =
-    tipoAgente === "quente"
-      ? process.env.RETELL_AGENT_QUENTE_ID
-      : process.env.RETELL_AGENT_FRIO_ID;
-
-  // ---- Modo demonstração: sem chave configurada, nada é disparado ----
-  if (!process.env.RETELL_API_KEY) {
-    return NextResponse.json({
-      simulado: true,
-      total: contatos.length,
-      mensagem: `${contatos.length} ligações entrariam na fila do agente de ligação ${tipoAgente}. Modo demonstração — configure RETELL_API_KEY na Vercel para disparar de verdade.`,
-    });
-  }
-
-  // ---- Validação das configurações ----
-  if (!agentId) {
-    return NextResponse.json(
-      {
-        erro: true,
-        mensagem: `O ID do agente de ligação ${tipoAgente} não está configurado. Preencha RETELL_AGENT_${tipoAgente === "quente" ? "QUENTE" : "FRIO"}_ID na Vercel.`,
-      },
-      { status: 400 }
-    );
-  }
-
-  if (!process.env.RETELL_FROM_NUMBER) {
-    return NextResponse.json(
-      { erro: true, mensagem: "O número de origem não está configurado. Preencha RETELL_FROM_NUMBER na Vercel." },
-      { status: 400 }
-    );
-  }
 
   if (!Array.isArray(contatos) || contatos.length === 0) {
     return NextResponse.json(
@@ -56,57 +32,65 @@ export async function POST(request) {
     );
   }
 
-  // ---- Disparo das ligações ----
-  let sucessos = 0;
-  const falhas = [];
-
-  for (const contato of contatos) {
-    try {
-      const resposta = await fetch("https://api.retellai.com/v2/create-phone-call", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.RETELL_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from_number: process.env.RETELL_FROM_NUMBER,
-          to_number: contato.telefone, // já vem em E.164, ex.: +5511984567712
-          override_agent_id: agentId,
-          // Variáveis disponíveis dentro do prompt do agente, ex.: {{nome}}
-          retell_llm_dynamic_variables: {
-            nome: contato.nome || "",
-          },
-        }),
-      });
-
-      if (resposta.ok) {
-        sucessos++;
-      } else {
-        const detalhe = await resposta.text();
-        falhas.push({ telefone: contato.telefone, detalhe: detalhe.slice(0, 200) });
-      }
-    } catch (e) {
-      falhas.push({ telefone: contato.telefone, detalhe: String(e).slice(0, 200) });
-    }
+  // ---- Modo demonstração ----
+  if (!process.env.RETELL_API_KEY) {
+    return NextResponse.json({
+      simulado: true,
+      total: contatos.length,
+      mensagem: `${contatos.length} ligações entrariam na fila do agente de ligação ${tipoAgente}. Modo demonstração — configure RETELL_API_KEY na Vercel para disparar de verdade.`,
+    });
   }
 
-  if (sucessos === 0) {
+  // ---- Trava de saldo: bloqueia ANTES de aceitar a lista ----
+  const checagem = await podeIniciarCampanha({
+    clienteId: cliente.id,
+    precoMinuto: cliente.preco_minuto,
+    totalContatos: contatos.length,
+  });
+
+  if (!checagem.liberado) {
+    const brl = (v) => v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
     return NextResponse.json(
       {
         erro: true,
-        mensagem: `Nenhuma ligação foi criada. Retorno da Retell: ${falhas[0]?.detalhe ?? "erro desconhecido"}`,
+        saldoInsuficiente: true,
+        saldo: checagem.saldo,
+        custoEstimado: checagem.custoEstimado,
+        mensagem: `Saldo insuficiente para ${contatos.length} contatos. Estimativa: ${brl(checagem.custoEstimado)} · seu saldo: ${brl(checagem.saldo)}. Adicione ${brl(checagem.faltam)} na Carteira para liberar.`,
       },
-      { status: 502 }
+      { status: 402 }
     );
   }
 
+  await garantirTabelas();
+
+  // ---- Importação para a fila (upsert por cliente + telefone) ----
+  // Quem já atendeu (CONCLUIDA) não volta para a fila.
+  let importados = 0;
+  for (const c of contatos) {
+    await sql`
+      INSERT INTO contatos (cliente_id, nome, telefone, agente, status)
+      VALUES (${cliente.id}, ${c.nome || ""}, ${c.telefone}, ${tipoAgente}, 'PENDENTE')
+      ON CONFLICT (cliente_id, telefone) DO UPDATE SET
+        nome       = EXCLUDED.nome,
+        agente     = EXCLUDED.agente,
+        status     = CASE WHEN contatos.status = 'CONCLUIDA' THEN 'CONCLUIDA' ELSE 'PENDENTE' END,
+        tentativas = CASE WHEN contatos.status = 'CONCLUIDA' THEN contatos.tentativas ELSE 0 END,
+        atualizado_em = NOW();
+    `;
+    importados++;
+  }
+
+  // ---- Pontapé inicial: a fila segue sozinha pelo webhook ----
+  const primeira = await processarProximoDaFila(cliente.id);
+
   return NextResponse.json({
     simulado: false,
-    total: sucessos,
-    falhas: falhas.length,
-    mensagem:
-      falhas.length === 0
-        ? `${sucessos} ligações criadas na Retell AI com o agente de ligação ${tipoAgente}.`
-        : `${sucessos} ligações criadas e ${falhas.length} falharam. Confira se os números estão no formato +55DDNNNNNNNNN.`,
+    total: importados,
+    saldo: checagem.saldo,
+    custoEstimado: checagem.custoEstimado,
+    mensagem: primeira.disparou
+      ? `${importados} contatos na fila. Primeira ligação discando agora — as demais seguem automaticamente, uma por vez.`
+      : `${importados} contatos na fila. A discagem segue automaticamente.`,
   });
 }
