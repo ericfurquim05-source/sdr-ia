@@ -102,6 +102,8 @@ async function executarCampanha(request) {
     custoEstimado: checagem.custoEstimado,
     mensagem: inicio.emitidas > 0
       ? `${importados} contatos na fila. ${inicio.emitidas} ${inicio.emitidas === 1 ? "ligação discando" : "ligações discando"} agora — conforme cada uma termina, a próxima entra automaticamente (até ${inicio.concorrencia} em paralelo).`
-      : `${importados} contatos na fila. A discagem segue automaticamente.`,
+      : inicio.detalhes?.[0]?.motivo === "fora_do_horario"
+        ? `${importados} contatos na fila. Fora do horário de ligações (${inicio.detalhes[0].janela}) — a discagem começa automaticamente no próximo horário permitido.`
+        : `${importados} contatos na fila. A discagem segue automaticamente.`,
   });
 }
