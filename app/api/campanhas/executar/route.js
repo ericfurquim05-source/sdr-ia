@@ -16,6 +16,17 @@ export const maxDuration = 60;
  *    As ligações seguintes são encadeadas pelo webhook.
  */
 export async function POST(request) {
+  try {
+    return await executarCampanha(request);
+  } catch (e) {
+    return NextResponse.json(
+      { erro: true, mensagem: `Falha inesperada: ${String(e?.message || e).slice(0, 300)}` },
+      { status: 500 }
+    );
+  }
+}
+
+async function executarCampanha(request) {
   let cliente;
   try {
     cliente = await exigirCliente();

@@ -5,7 +5,13 @@ import { creditarRecarga } from "@/lib/saldo";
 
 /* Cria a conta do cliente e já deixa logado. */
 export async function POST(request) {
-  const { nome, empresa, email, senha } = await request.json();
+  let dados;
+  try {
+    dados = await request.json();
+  } catch {
+    return NextResponse.json({ erro: "Requisição inválida." }, { status: 400 });
+  }
+  const { nome, empresa, email, senha } = dados;
 
   if (!nome || !email || !senha) {
     return NextResponse.json({ erro: "Preencha nome, e-mail e senha." }, { status: 400 });

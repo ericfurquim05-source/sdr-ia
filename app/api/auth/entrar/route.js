@@ -4,7 +4,13 @@ import { conferirSenha, criarSessao } from "@/lib/auth";
 
 /* Login do cliente. */
 export async function POST(request) {
-  const { email, senha } = await request.json();
+  let dados;
+  try {
+    dados = await request.json();
+  } catch {
+    return NextResponse.json({ erro: "Requisição inválida." }, { status: 400 });
+  }
+  const { email, senha } = dados;
   await garantirTabelas();
 
   const { rows } = await sql`

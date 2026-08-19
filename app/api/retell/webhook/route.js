@@ -49,6 +49,17 @@ const MOTIVOS_DE_FALHA = new Set([
 ]);
 
 export async function POST(request) {
+  try {
+    return await tratarEvento(request);
+  } catch (e) {
+    // Nunca devolve 500: a Retell reenviaria o evento em loop.
+    // O erro fica no log da Vercel para diagnóstico.
+    console.error("webhook_retell_erro:", e);
+    return NextResponse.json({ recebido: true, erro: String(e?.message || e).slice(0, 200) });
+  }
+}
+
+async function tratarEvento(request) {
   const corpo = await request.json();
   const evento = corpo.event;
   const chamada = corpo.call ?? corpo.data ?? {};

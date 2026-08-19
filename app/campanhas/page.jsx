@@ -8,6 +8,7 @@ import {
   Flame,
   Rocket,
   CheckCircle2,
+  AlertCircle,
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
@@ -225,10 +226,19 @@ export default function Campanhas() {
         )}
 
         {resultado?.erro && (
-          <div className="card border-rose-500/30 p-4 text-sm text-rose-300">
-            {resultado.mensagem}
+          <div className="card flex items-start gap-3 border-rose-500/30 p-4">
+            <AlertCircle size={19} className="mt-0.5 shrink-0 text-rose-400" />
+            <div className="text-sm">
+              <p className="font-medium text-rose-300">
+                {resultado.saldoInsuficiente ? "Saldo insuficiente" : "Não foi possível iniciar"}
+              </p>
+              <p className="mt-0.5 text-slate-400">
+                {resultado.mensagem || "Tente novamente em instantes."}
+              </p>
+            </div>
           </div>
         )}
+
       </div>
     </>
   );
