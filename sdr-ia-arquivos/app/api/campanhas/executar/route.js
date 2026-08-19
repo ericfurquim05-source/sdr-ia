@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { garantirTabelas, sql } from "@/lib/db";
 import { exigirCliente } from "@/lib/auth";
 import { podeIniciarCampanha } from "@/lib/saldo";
-import { processarProximoDaFila } from "@/lib/fila";
+import { preencherVagas } from "@/lib/fila";
 
 export const maxDuration = 60;
 
@@ -81,16 +81,16 @@ export async function POST(request) {
     importados++;
   }
 
-  // ---- Pontapé inicial: a fila segue sozinha pelo webhook ----
-  const primeira = await processarProximoDaFila(cliente.id);
+  // ---- Pontapé inicial: abre todas as vagas simultâneas ----
+  const inicio = await preencherVagas(cliente.id);
 
   return NextResponse.json({
     simulado: false,
     total: importados,
     saldo: checagem.saldo,
     custoEstimado: checagem.custoEstimado,
-    mensagem: primeira.disparou
-      ? `${importados} contatos na fila. Primeira ligação discando agora — as demais seguem automaticamente, uma por vez.`
+    mensagem: inicio.emitidas > 0
+      ? `${importados} contatos na fila. ${inicio.emitidas} ${inicio.emitidas === 1 ? "ligação discando" : "ligações discando"} agora — conforme cada uma termina, a próxima entra automaticamente (até ${inicio.concorrencia} em paralelo).`
       : `${importados} contatos na fila. A discagem segue automaticamente.`,
   });
 }

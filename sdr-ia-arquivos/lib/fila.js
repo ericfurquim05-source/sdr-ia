@@ -15,6 +15,24 @@ import { montarNumeroDestino } from "@/lib/retell";
 
 const LIMITE_TENTATIVAS = 7;
 
+/*
+ * COMO O REDIAL FUNCIONA
+ * O sistema insiste no MESMO número até resolver, uma ligação por vez:
+ *
+ *   liga → aguarda encerrar → classifica o desfecho
+ *     ├─ atendeu e falou > 13s  → CONCLUIDA, vai para o próximo contato
+ *     └─ não atendeu, caiu em 3s, caixa postal → LIGA DE NOVO no mesmo
+ *        número, até 7 tentativas; na 7ª vira ESGOTADO e segue adiante
+ *
+ * Nunca há duas ligações simultâneas: a próxima só sai quando o webhook
+ * confirma o fim da anterior.
+ *
+ * MINUTOS_ENTRE_TENTATIVAS: pausa entre as tentativas do mesmo número.
+ * Padrão 0 = redisca imediatamente. Se algum dia quiser espaçar (ou
+ * intercalar com outros contatos), basta subir esse valor na Vercel.
+ */
+const MINUTOS_ENTRE_TENTATIVAS = Number(process.env.MINUTOS_ENTRE_TENTATIVAS || 20);
+
 /** Busca o agent_id do cliente; cai no agente global se não houver. */
 async function agentIdDoCliente(clienteId, tipo) {
   const { rows } = await sql`
@@ -34,21 +52,32 @@ async function agentIdDoCliente(clienteId, tipo) {
 export async function processarProximoDaFila(clienteId) {
   await garantirTabelas();
 
-  // Já existe ligação em andamento deste cliente? Espera a vez.
+  // Há vaga livre? Nunca ultrapassa o limite de chamadas simultâneas.
   const { rows: ativas } = await sql`
-    SELECT id FROM contatos WHERE cliente_id = ${clienteId} AND status = 'EM_LIGACAO' LIMIT 1;
+    SELECT COUNT(*)::int AS total FROM contatos
+    WHERE cliente_id = ${clienteId} AND status = 'EM_LIGACAO';
   `;
-  if (ativas.length > 0) {
-    return { disparou: false, motivo: "ja_ha_ligacao_em_andamento" };
+  if ((ativas[0]?.total ?? 0) >= CONCORRENCIA_MAXIMA) {
+    return { disparou: false, motivo: "concorrencia_cheia", ativas: ativas[0].total };
   }
 
-  // Pega o próximo da fila (menos tentativas primeiro, depois mais antigo)
+  // Pega o próximo: insiste no número que já começou, antes de abrir outro
   const { rows } = await sql`
     UPDATE contatos SET status = 'EM_LIGACAO', atualizado_em = NOW()
     WHERE id = (
       SELECT id FROM contatos
-      WHERE cliente_id = ${clienteId} AND status = 'PENDENTE' AND tentativas < ${LIMITE_TENTATIVAS}
-      ORDER BY tentativas ASC, id ASC
+      WHERE cliente_id = ${clienteId}
+        AND status = 'PENDENTE'
+        AND tentativas < ${LIMITE_TENTATIVAS}
+        AND proxima_tentativa <= NOW()          -- respeita a espera do redial
+      ORDER BY
+        -- 1) Quem já teve tentativa continua na frente: resolve um número
+        --    por vez, em vez de espalhar meia ligação por toda a lista
+        CASE WHEN tentativas > 0 THEN 0 ELSE 1 END ASC,
+        -- 2) Entre os que já tentaram, o que acabou de falhar vem primeiro
+        atualizado_em DESC,
+        -- 3) Contatos novos seguem a ordem da planilha
+        id ASC
       LIMIT 1
       FOR UPDATE SKIP LOCKED
     )
@@ -56,6 +85,14 @@ export async function processarProximoDaFila(clienteId) {
   `;
 
   if (rows.length === 0) {
+    // Ninguém liberado agora: pode ser fila vazia ou todos em espera
+    const { rows: espera } = await sql`
+      SELECT MIN(proxima_tentativa) AS proxima FROM contatos
+      WHERE cliente_id = ${clienteId} AND status = 'PENDENTE' AND tentativas < ${LIMITE_TENTATIVAS};
+    `;
+    if (espera[0]?.proxima) {
+      return { disparou: false, motivo: "aguardando_intervalo", proximaTentativa: espera[0].proxima };
+    }
     return { disparou: false, motivo: "fila_vazia" };
   }
 
@@ -111,6 +148,24 @@ export async function processarProximoDaFila(clienteId) {
 }
 
 /**
+ * Preenche todas as vagas livres de uma vez.
+ * Usada ao iniciar a campanha e sempre que uma chamada termina.
+ */
+export async function preencherVagas(clienteId) {
+  const disparos = [];
+  // No máximo CONCORRENCIA_MAXIMA tentativas por execução, para não
+  // estourar o tempo da função serverless.
+  for (let i = 0; i < CONCORRENCIA_MAXIMA; i++) {
+    const r = await processarProximoDaFila(clienteId);
+    disparos.push(r);
+    // Para quando não há vaga, ninguém liberado ou a fila acabou
+    if (!r.disparou) break;
+  }
+  const emitidas = disparos.filter((d) => d.disparou).length;
+  return { emitidas, concorrencia: CONCORRENCIA_MAXIMA, detalhes: disparos };
+}
+
+/**
  * Falha (não atendeu, caixa postal, erro, queda <= 13s):
  * +1 tentativa; volta para PENDENTE até a 7ª, quando vira ESGOTADO.
  */
@@ -121,11 +176,21 @@ export async function registrarFalha(contatoId, motivo) {
       status        = CASE WHEN tentativas + 1 >= ${LIMITE_TENTATIVAS} THEN 'ESGOTADO' ELSE 'PENDENTE' END,
       ultimo_motivo = ${motivo},
       call_id       = NULL,
+      -- Espera crescente antes de tentar este número de novo:
+      -- 1a falha 20min, 2a 40min, 3a 1h... enquanto isso a fila
+      -- segue discando para OUTROS contatos.
+      proxima_tentativa = NOW() + (${MINUTOS_ENTRE_TENTATIVAS} * (tentativas + 1)) * INTERVAL '1 minute',
       atualizado_em = NOW()
     WHERE id = ${contatoId}
-    RETURNING status, tentativas;
+    RETURNING status, tentativas, proxima_tentativa;
   `;
-  return { disparou: false, falha: true, novoStatus: rows[0]?.status, tentativas: rows[0]?.tentativas };
+  return {
+    disparou: false,
+    falha: true,
+    novoStatus: rows[0]?.status,
+    tentativas: rows[0]?.tentativas,
+    proximaTentativa: rows[0]?.proxima_tentativa,
+  };
 }
 
 /** Sucesso: atendeu e conversou por mais de 13 segundos. */
@@ -176,7 +241,7 @@ export async function resumoFila(clienteId) {
 export async function ultimosMotivos(clienteId, limite = 10) {
   await garantirTabelas();
   const { rows } = await sql`
-    SELECT nome, telefone, status, tentativas, ultimo_motivo, atualizado_em
+    SELECT nome, telefone, status, tentativas, ultimo_motivo, proxima_tentativa, atualizado_em
     FROM contatos
     WHERE cliente_id = ${clienteId} AND ultimo_motivo IS NOT NULL
     ORDER BY atualizado_em DESC LIMIT ${limite};

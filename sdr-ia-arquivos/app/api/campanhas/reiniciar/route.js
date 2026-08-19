@@ -18,14 +18,21 @@ export async function GET() {
     return NextResponse.json({ erro: "Faça login primeiro." }, { status: 401 });
   }
 
-  await garantirTabelas();
-  const { rows } = await sql`
-    UPDATE contatos SET
-      tentativas = 0, status = 'PENDENTE', ultimo_motivo = NULL,
-      call_id = NULL, atualizado_em = NOW()
-    WHERE cliente_id = ${cliente.id} AND status <> 'CONCLUIDA'
-    RETURNING id;
-  `;
+  try {
+    await garantirTabelas();
+    var { rows } = await sql`
+      UPDATE contatos SET
+        tentativas = 0, status = 'PENDENTE', ultimo_motivo = NULL,
+        call_id = NULL, proxima_tentativa = NOW(), atualizado_em = NOW()
+      WHERE cliente_id = ${cliente.id} AND status <> 'CONCLUIDA'
+      RETURNING id;
+    `;
+  } catch (e) {
+    return NextResponse.json(
+      { erro: true, mensagem: String(e?.message || e).slice(0, 500) },
+      { status: 500 }
+    );
+  }
 
   return NextResponse.json({
     reiniciados: rows.length,

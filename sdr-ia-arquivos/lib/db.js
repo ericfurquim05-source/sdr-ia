@@ -69,13 +69,16 @@ export async function garantirTabelas() {
       agente        TEXT NOT NULL DEFAULT 'fria',
       call_id       TEXT,
       ultimo_motivo TEXT,
+      proxima_tentativa TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       criado_em     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       atualizado_em TIMESTAMPTZ NOT NULL DEFAULT NOW()
     );
   `;
+  // Bancos criados antes desta coluna existir
+  await sql`ALTER TABLE contatos ADD COLUMN IF NOT EXISTS proxima_tentativa TIMESTAMPTZ NOT NULL DEFAULT NOW();`;
   // O mesmo telefone pode existir para clientes diferentes
   await sql`CREATE UNIQUE INDEX IF NOT EXISTS contatos_cliente_telefone ON contatos (cliente_id, telefone);`;
-  await sql`CREATE INDEX IF NOT EXISTS contatos_fila ON contatos (cliente_id, status, tentativas);`;
+  await sql`CREATE INDEX IF NOT EXISTS contatos_fila ON contatos (cliente_id, status, proxima_tentativa, tentativas);`;
 
   // ---- Extrato financeiro (fonte da verdade do saldo) ----
   await sql`
