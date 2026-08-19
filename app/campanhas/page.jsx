@@ -11,6 +11,7 @@ import {
   X,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
+import { lerContatos } from "@/lib/planilha";
 
 const agentes = [
   {
@@ -42,13 +43,20 @@ export default function Campanhas() {
     if (!file) return;
     setArquivo(file);
     setResultado(null);
-    // Contagem rápida de contatos para CSV (para Excel, o parse fica no backend)
-    if (file.name.toLowerCase().endsWith(".csv")) {
-      const texto = await file.text();
-      const linhas = texto.split("\n").filter((l) => l.trim() !== "");
-      setContatos(Math.max(linhas.length - 1, 0)); // desconta o cabeçalho
-    } else {
-      setContatos(null);
+    setContatos(null);
+    try {
+      // Lê a planilha e já normaliza os telefones para o formato +55DDNNNNNNNNN
+      const lista = await lerContatos(file);
+      setContatos(lista);
+      if (lista.length === 0) {
+        setResultado({
+          erro: true,
+          mensagem:
+            "Nenhum telefone válido encontrado. A planilha precisa das colunas nome e telefone.",
+        });
+      }
+    } catch {
+      setResultado({ erro: true, mensagem: "Não consegui ler essa planilha. Tente salvar como CSV." });
     }
   };
 
@@ -63,7 +71,8 @@ export default function Campanhas() {
         body: JSON.stringify({
           tipoAgente,
           nomeArquivo: arquivo?.name,
-          totalContatos: contatos ?? 0,
+          contatos: contatos ?? [],
+          totalContatos: contatos?.length ?? 0,
         }),
       });
       setResultado(await resposta.json());
@@ -74,7 +83,7 @@ export default function Campanhas() {
     }
   };
 
-  const pronto = arquivo && tipoAgente;
+  const pronto = arquivo && tipoAgente && contatos && contatos.length > 0;
 
   return (
     <>
@@ -135,8 +144,8 @@ export default function Campanhas() {
                 <p className="truncate font-medium text-slate-200">{arquivo.name}</p>
                 <p className="text-sm text-slate-500">
                   {contatos !== null
-                    ? `${contatos} contatos identificados`
-                    : "Contatos serão validados ao executar"}
+                    ? `${contatos.length} contatos prontos para ligar`
+                    : "Lendo planilha..."}
                 </p>
               </div>
               <button
