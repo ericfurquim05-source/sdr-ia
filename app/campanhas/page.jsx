@@ -3,16 +3,15 @@
 import { useRef, useState } from "react";
 import {
   UploadCloud,
-  FileSpreadsheet,
   Snowflake,
   Flame,
   Rocket,
   CheckCircle2,
   AlertCircle,
-  X,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
-import { lerContatos, formatarExibicao } from "@/lib/planilha";
+import { analisarPlanilha } from "@/lib/planilha";
+import ConferenciaPlanilha from "@/components/ConferenciaPlanilha";
 
 const agentes = [
   {
@@ -34,7 +33,8 @@ const agentes = [
 export default function Campanhas() {
   const inputRef = useRef(null);
   const [arquivo, setArquivo] = useState(null);
-  const [contatos, setContatos] = useState(null);
+  const [analise, setAnalise] = useState(null);   // colunas + linhas cruas
+  const [contatos, setContatos] = useState(null); // já convertidos
   const [tipoAgente, setTipoAgente] = useState(null);
   const [arrastando, setArrastando] = useState(false);
   const [executando, setExecutando] = useState(false);
@@ -45,20 +45,22 @@ export default function Campanhas() {
     setArquivo(file);
     setResultado(null);
     setContatos(null);
+    setAnalise(null);
     try {
-      // Lê a planilha e já normaliza os telefones para o formato +55DDNNNNNNNNN
-      const lista = await lerContatos(file);
-      setContatos(lista);
-      if (lista.length === 0) {
-        setResultado({
-          erro: true,
-          mensagem:
-            "Nenhum telefone válido encontrado. A planilha precisa de uma coluna com os telefones (DDD + número).",
-        });
-      }
+      // Não converte na marra: analisa e deixa o cliente conferir as colunas
+      const dados = await analisarPlanilha(file);
+      setAnalise(dados);
     } catch {
       setResultado({ erro: true, mensagem: "Não consegui ler essa planilha. Tente salvar como CSV." });
+      setArquivo(null);
     }
+  };
+
+  const limparArquivo = () => {
+    setArquivo(null);
+    setAnalise(null);
+    setContatos(null);
+    setResultado(null);
   };
 
   const executarCampanha = async () => {
@@ -138,33 +140,15 @@ export default function Campanhas() {
                 onChange={(e) => receberArquivo(e.target.files?.[0])}
               />
             </div>
+          ) : analise ? (
+            <ConferenciaPlanilha
+              analise={analise}
+              arquivo={arquivo}
+              onPronto={setContatos}
+              onRemover={limparArquivo}
+            />
           ) : (
-            <div className="flex items-center gap-4 rounded-2xl border border-brand-blue/30 bg-brand-blue/5 p-4">
-              <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-navy-800">
-                <FileSpreadsheet size={20} className="text-emerald-400" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="truncate font-medium text-slate-200">{arquivo.name}</p>
-                <p className="text-sm text-slate-500">
-                  {contatos !== null
-                    ? `${contatos.length} contatos prontos para ligar${
-                        contatos.length ? ` · ex.: ${formatarExibicao(contatos[0].telefone)}` : ""
-                      }`
-                    : "Lendo planilha..."}
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setArquivo(null);
-                  setContatos(null);
-                  setResultado(null);
-                }}
-                aria-label="Remover arquivo"
-                className="btn-fantasma !px-2.5"
-              >
-                <X size={15} />
-              </button>
-            </div>
+            <p className="text-sm text-slate-500">Lendo planilha...</p>
           )}
         </section>
 
