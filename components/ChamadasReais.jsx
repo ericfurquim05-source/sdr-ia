@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer } from "lucide-react";
+import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer, DownloadCloud, Loader2 } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/Interface";
 import FiltroPeriodo from "@/components/FiltroPeriodo";
 import { detectarSinais, ehOportunidade } from "@/lib/sinais";
@@ -91,6 +91,25 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
 
   const minutosTotais = Math.round((totais?.msTotal ?? 0) / 60000);
 
+  // Traz para o site as ligações que a Retell já tem gravadas
+  const [importando, setImportando] = useState(false);
+  const [avisoImport, setAvisoImport] = useState(null);
+
+  const importarHistorico = async () => {
+    setImportando(true);
+    setAvisoImport(null);
+    try {
+      const r = await fetch("/api/importar/retell");
+      const d = await r.json();
+      setAvisoImport(d.mensagem || d.erro);
+      if (r.ok) router.refresh();
+    } catch {
+      setAvisoImport("Falha ao importar. Tente de novo.");
+    } finally {
+      setImportando(false);
+    }
+  };
+
   const statusDe = (l) => (l.sucesso ? "Atendida" : "Não atendida");
 
   const lista = ligacoes.filter((l) => {
@@ -124,7 +143,15 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
         subtitulo="Histórico real das ligações — gravação, resumo e transcrição."
       >
         <FiltroPeriodo de={de} ate={ate} base="/sdr-ia" extra={`&ordem=${ordem}`} />
+        <button onClick={importarHistorico} disabled={importando} className="btn-fantasma text-sm">
+          {importando ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
+          Importar da Retell
+        </button>
       </PageHeader>
+
+      {avisoImport && (
+        <p className="card mb-4 border-brand-blue/30 p-3 text-sm text-slate-300">{avisoImport}</p>
+      )}
 
       {/* Resumo do período selecionado */}
       <div className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
