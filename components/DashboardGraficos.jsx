@@ -34,7 +34,11 @@ export default function DashboardGraficos({ kpis, serie, desfechos }) {
 
   return (
     <>
-      <PageHeader titulo="Dashboard" subtitulo={`Acompanhamento em tempo real · ${dataHoje}`} />
+      <PageHeader titulo="Dashboard" subtitulo={`Acompanhamento em tempo real · ${dataHoje}`}>
+        <a href="/api/relatorio/ligacoes" className="btn-fantasma text-sm" download>
+          Exportar planilha
+        </a>
+      </PageHeader>
 
       {/* KPIs do dia — direto da tabela de ligações */}
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">

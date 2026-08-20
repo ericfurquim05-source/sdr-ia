@@ -69,7 +69,7 @@ export default function CalendarioGrade({ eventos }) {
             {celulas.map((d, i) => {
               if (!d) return <div key={i} />;
               const dow = new Date(ano, mes, d).getDay();
-              const bloqueado = dow === 0 || dow === 6;
+              const bloqueado = dow === 0; // só domingo bloqueado
               const tem = porDia.get(d);
               const selecionado = d === diaSel;
               const ehHoje =
@@ -99,7 +99,7 @@ export default function CalendarioGrade({ eventos }) {
           </div>
 
           <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-            <Clock size={12} /> Atendimento: seg a sex — fins de semana bloqueados
+            <Clock size={12} /> Atendimento: segunda a sábado, 08h às 21h — domingos bloqueados
           </p>
         </div>
 

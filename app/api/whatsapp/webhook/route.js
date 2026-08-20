@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { garantirTabelas, sql } from "@/lib/db";
 import { normalizarTelefone } from "@/lib/planilha";
+import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
+import { enviarTexto } from "@/lib/whatsapp";
 
 /*
  * ============================================================
@@ -54,6 +56,28 @@ export async function POST(request) {
             INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto)
             VALUES (${clienteId}, ${telefone}, 'in', ${texto});
           `;
+
+          // ---- IA CONTINUA A CONVERSA (omnichannel) ----
+          // Lê o resumo/transcrição da ligação + histórico e responde
+          // na hora, dentro da janela de 24h aberta pelo lead.
+          if (autorespostaLigada()) {
+            try {
+              const respostaIa = await responderComoSdr({ clienteId, telefone });
+              if (respostaIa) {
+                const { rows: cli } = await sql`
+                  SELECT preco_conversa FROM clientes WHERE id = ${clienteId} LIMIT 1;
+                `;
+                await enviarTexto({
+                  clienteId,
+                  precoConversa: cli[0]?.preco_conversa ?? 0.5,
+                  telefone,
+                  texto: respostaIa,
+                });
+              }
+            } catch (e) {
+              console.error("autoresposta_erro:", e);
+            }
+          }
         }
       }
     }

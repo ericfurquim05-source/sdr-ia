@@ -15,7 +15,8 @@ export function middleware(request) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/retell") ||          // webhook da Retell vem de fora
     pathname.startsWith("/api/campanhas/processar") || // cron da Vercel vem sem cookie
-    pathname.startsWith("/api/whatsapp/webhook");       // webhook da Meta vem de fora
+    pathname.startsWith("/api/whatsapp/webhook") ||     // webhook da Meta vem de fora
+    pathname.startsWith("/api/agenda");                  // custom functions da Retell
 
   if (!temSessao && !rotaPublica) {
     const destino = request.nextUrl.clone();
