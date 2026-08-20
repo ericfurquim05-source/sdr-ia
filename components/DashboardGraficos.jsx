@@ -82,14 +82,23 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, hor
       </div>
 
       <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {cardsResultado.map((c) => (
-          <div key={c.titulo} className="card border-white/10 p-4">
+        {cardsResultado.map((c) => {
+          const Card = c.titulo === "Reuniões agendadas" ? "a" : "div";
+          return (
+          <Card
+            key={c.titulo}
+            {...(c.titulo === "Reuniões agendadas" ? { href: "/reunioes" } : {})}
+            className={`card border-white/10 p-4 ${
+              c.titulo === "Reuniões agendadas" ? "transition hover:border-brand-violet/50" : ""
+            }`}
+          >
             <c.icone size={18} className={c.cor} />
             <p className="mt-3 font-display text-3xl font-bold text-white">{c.valor}</p>
             <p className="mt-1 text-xs text-slate-500">{c.titulo}</p>
             {c.nota && <p className="mt-0.5 text-xs text-slate-600">{c.nota}</p>}
-          </div>
-        ))}
+          </Card>
+          );
+        })}
       </div>
 
       {/* Situação da fila AGORA (independente do período) */}

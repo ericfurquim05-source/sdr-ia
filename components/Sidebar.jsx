@@ -12,6 +12,7 @@ import {
   Sparkles,
   Plus,
   LogOut,
+  CalendarCheck,
 } from "lucide-react";
 
 const itens = [
@@ -20,6 +21,7 @@ const itens = [
   { rotulo: "SDR IA", href: "/sdr-ia", icone: Bot },
   { rotulo: "Calendário", href: "/calendario", icone: CalendarDays },
   { rotulo: "WhatsApp", href: "/whatsapp", icone: MessageCircle },
+  { rotulo: "Reuniões", href: "/reunioes", icone: CalendarCheck },
   { rotulo: "Carteira", href: "/carteira", icone: Wallet },
 ];
 
