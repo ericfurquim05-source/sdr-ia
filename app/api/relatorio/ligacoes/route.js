@@ -9,9 +9,15 @@ export const dynamic = "force-dynamic";
  * todas as ligações do cliente: data, contato, duração, desfecho,
  * sucesso, custo e resumo da IA.
  */
-export async function GET() {
+export async function GET(request) {
   const cliente = await clienteLogado();
   if (!cliente) return new Response("Faça login.", { status: 401 });
+
+  // Mesmo período do filtro do Dashboard (?de=&ate=); sem ele, tudo.
+  const url = new URL(request.url);
+  const okData = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
+  const de = okData(url.searchParams.get("de")) ? url.searchParams.get("de") : "2000-01-01";
+  const ate = okData(url.searchParams.get("ate")) ? url.searchParams.get("ate") : "2100-01-01";
 
   await garantirTabelas();
   const { rows } = await sql`
@@ -19,7 +25,9 @@ export async function GET() {
            nome, telefone, agente,
            ROUND(duracao_ms / 1000.0)::int AS duracao_segundos,
            motivo, sucesso, custo::float AS custo, COALESCE(resumo, '') AS resumo
-    FROM ligacoes WHERE cliente_id = ${cliente.id}
+    FROM ligacoes
+    WHERE cliente_id = ${cliente.id}
+      AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date
     ORDER BY criado_em DESC LIMIT 5000;
   `;
 
