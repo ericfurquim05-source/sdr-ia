@@ -1,29 +1,74 @@
 import ChamadasReais from "@/components/ChamadasReais";
 import { clienteLogado } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
+import { hojeSP, dataValida } from "@/lib/estatisticas";
 
 export const dynamic = "force-dynamic";
 
-/* Aba SDR IA — histórico REAL das ligações da tabela "ligacoes". */
-export default async function SdrIa() {
+/*
+ * Aba SDR IA — histórico REAL das ligações.
+ * Aceita ?de=&ate= (mesmo formato do Dashboard) e ?ordem=
+ *   duracao_desc → quem falou mais tempo primeiro (padrão útil)
+ *   duracao_asc  → conversas mais curtas primeiro
+ *   recentes / antigas → por data
+ */
+const ORDENS = ["duracao_desc", "duracao_asc", "recentes", "antigas"];
+
+export default async function SdrIa({ searchParams }) {
+  const hoje = hojeSP();
+  // Padrão: últimos 30 dias, para não abrir a tela vazia
+  const trintaDias = new Date(Date.now() - 29 * 86400000).toLocaleDateString("en-CA", {
+    timeZone: "America/Sao_Paulo",
+  });
+  let de = dataValida(searchParams?.de, trintaDias);
+  let ate = dataValida(searchParams?.ate, hoje);
+  if (de > ate) [de, ate] = [ate, de];
+
+  const ordem = ORDENS.includes(searchParams?.ordem) ? searchParams.ordem : "duracao_desc";
+
   let ligacoes = [];
+  let totais = { total: 0, atendidas: 0, msTotal: 0 };
+
   try {
     const cliente = await clienteLogado();
     if (cliente) {
       await garantirTabelas();
+
+      // Ordenação sem SQL dinâmico: o banco decide pelo valor validado acima
       const { rows } = await sql`
         SELECT id, nome, telefone, duracao_ms::int AS duracao_ms, motivo, sucesso,
                recording_url, transcript, resumo, criado_em
         FROM ligacoes
         WHERE cliente_id = ${cliente.id}
-        ORDER BY criado_em DESC
-        LIMIT 100;
+          AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date
+        ORDER BY
+          CASE WHEN ${ordem} = 'duracao_desc' THEN duracao_ms END DESC,
+          CASE WHEN ${ordem} = 'duracao_asc'  THEN duracao_ms END ASC,
+          CASE WHEN ${ordem} = 'antigas'      THEN criado_em  END ASC,
+          criado_em DESC
+        LIMIT 200;
       `;
       ligacoes = rows.map((r) => ({ ...r, criado_em: r.criado_em.toISOString() }));
+
+      const { rows: agg } = await sql`
+        SELECT COUNT(*)::int AS total,
+               COUNT(*) FILTER (WHERE sucesso)::int AS atendidas,
+               COALESCE(SUM(duracao_ms), 0)::bigint AS ms_total
+        FROM ligacoes
+        WHERE cliente_id = ${cliente.id}
+          AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date;
+      `;
+      totais = {
+        total: agg[0].total,
+        atendidas: agg[0].atendidas,
+        msTotal: Number(agg[0].ms_total),
+      };
     }
   } catch {
     ligacoes = [];
   }
 
-  return <ChamadasReais ligacoes={ligacoes} />;
+  return (
+    <ChamadasReais ligacoes={ligacoes} de={de} ate={ate} ordem={ordem} totais={totais} />
+  );
 }

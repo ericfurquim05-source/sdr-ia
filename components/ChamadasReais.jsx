@@ -1,8 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Search, Sparkles, Play, Pause } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/Interface";
+import FiltroPeriodo from "@/components/FiltroPeriodo";
 
 /*
  * Lista de chamadas REAIS (tabela ligacoes): player com a gravação
@@ -64,12 +66,26 @@ function Transcricao({ texto }) {
   );
 }
 
-export default function ChamadasReais({ ligacoes }) {
+const OPCOES_ORDEM = [
+  { id: "duracao_desc", rotulo: "Maior duração" },
+  { id: "duracao_asc", rotulo: "Menor duração" },
+  { id: "recentes", rotulo: "Mais recentes" },
+  { id: "antigas", rotulo: "Mais antigas" },
+];
+
+export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
+  const router = useRouter();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todas");
   const [aberto, setAberto] = useState(ligacoes[0]?.id ?? null);
 
   const chips = ["Todas", "Atendida", "Não atendida"];
+
+  const trocarOrdem = (novaOrdem) => {
+    router.push(`/sdr-ia?de=${de}&ate=${ate}&ordem=${novaOrdem}`);
+  };
+
+  const minutosTotais = Math.round((totais?.msTotal ?? 0) / 60000);
 
   const statusDe = (l) => (l.sucesso ? "Atendida" : "Não atendida");
 
@@ -98,7 +114,42 @@ export default function ChamadasReais({ ligacoes }) {
       <PageHeader
         titulo="SDR IA"
         subtitulo="Histórico real das ligações — gravação, resumo e transcrição."
-      />
+      >
+        <FiltroPeriodo de={de} ate={ate} base="/sdr-ia" extra={`&ordem=${ordem}`} />
+      </PageHeader>
+
+      {/* Resumo do período selecionado */}
+      <div className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
+        <span className="text-slate-400">
+          <b className="text-white">{totais?.total ?? 0}</b> ligações no período
+        </span>
+        <span className="text-slate-400">
+          <b className="text-emerald-300">{totais?.atendidas ?? 0}</b> atendidas
+        </span>
+        <span className="flex items-center gap-1.5 text-slate-400">
+          <Timer size={13} /> <b className="text-white">{minutosTotais}</b> min no total
+        </span>
+      </div>
+
+      {/* Ordenação */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="flex items-center gap-1.5 text-xs text-slate-500">
+          <ArrowUpDown size={13} /> Ordenar por:
+        </span>
+        {OPCOES_ORDEM.map((o) => (
+          <button
+            key={o.id}
+            onClick={() => trocarOrdem(o.id)}
+            className={`rounded-full px-3 py-1.5 text-xs transition ${
+              ordem === o.id
+                ? "bg-gradient-to-r from-brand-blue to-brand-violet text-white"
+                : "border border-white/10 text-slate-400 hover:text-white"
+            }`}
+          >
+            {o.rotulo}
+          </button>
+        ))}
+      </div>
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
         <div className="campo flex flex-1 items-center gap-2 !py-2.5">
@@ -129,8 +180,8 @@ export default function ChamadasReais({ ligacoes }) {
 
       {lista.length === 0 && (
         <div className="card p-8 text-center text-sm text-slate-500">
-          Nenhuma ligação registrada ainda. As chamadas aparecem aqui em tempo real
-          conforme a campanha roda.
+          Nenhuma ligação neste período. Ajuste o filtro de data acima ou aguarde a
+          campanha rodar.
         </div>
       )}
 
@@ -154,8 +205,16 @@ export default function ChamadasReais({ ligacoes }) {
                   {l.nome || "Sem nome"}{" "}
                   <span className="font-normal text-slate-500">· {l.telefone}</span>
                 </p>
-                <p className="mt-0.5 text-xs text-slate-500">
-                  {fmtHora(l.criado_em)} · {fmtDuracao(l.duracao_ms)} · {l.motivo}
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                  {fmtHora(l.criado_em)} ·
+                  <span
+                    className={`inline-flex items-center gap-1 font-semibold ${
+                      l.duracao_ms > 60000 ? "text-emerald-400" : "text-slate-400"
+                    }`}
+                  >
+                    <Clock size={11} /> {fmtDuracao(l.duracao_ms)}
+                  </span>
+                  · {l.motivo}
                 </p>
               </div>
               <StatusBadge status={l.sucesso ? "Atendida" : "Não atendida"} />

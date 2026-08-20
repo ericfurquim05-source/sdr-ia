@@ -36,7 +36,7 @@ function calcularPresets() {
   ];
 }
 
-export default function FiltroPeriodo({ de, ate }) {
+export default function FiltroPeriodo({ de, ate, base = "/", extra = "" }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [deCustom, setDeCustom] = useState(de);
@@ -50,7 +50,8 @@ export default function FiltroPeriodo({ de, ate }) {
 
   const aplicar = (novoDe, novoAte) => {
     setAberto(false);
-    router.push(`/?de=${novoDe}&ate=${novoAte}`);
+    // "extra" preserva outros parâmetros da página (ex.: ordenação)
+    router.push(`${base}?de=${novoDe}&ate=${novoAte}${extra}`);
   };
 
   return (
