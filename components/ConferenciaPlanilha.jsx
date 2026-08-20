@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   FileSpreadsheet, CheckCircle2, AlertTriangle, Copy, Download, X,
 } from "lucide-react";
@@ -15,6 +15,16 @@ import { montarContatos, formatarExibicao } from "@/lib/planilha";
  */
 export default function ConferenciaPlanilha({ analise, arquivo, onPronto, onRemover }) {
   const [mapa, setMapa] = useState(analise.mapa);
+  // Prefixo do tronco SIP (ex.: 968655) — usado na planilha padronizada,
+  // para que o arquivo baixado saia no mesmo formato que o discador usa.
+  const [prefixo, setPrefixo] = useState("");
+
+  useEffect(() => {
+    fetch("/api/campanhas/config")
+      .then((r) => r.json())
+      .then((d) => setPrefixo(d.prefixo || ""))
+      .catch(() => setPrefixo(""));
+  }, []);
 
   // Recalcula a conversão sempre que o cliente troca uma coluna
   const resultado = useMemo(() => montarContatos(analise.linhas, mapa), [analise.linhas, mapa]);
@@ -23,9 +33,12 @@ export default function ConferenciaPlanilha({ analise, arquivo, onPronto, onRemo
   useMemo(() => onPronto(resultado.contatos), [resultado.contatos]);
 
   const baixarCorrigida = () => {
+    // Telefone no formato do tronco: prefixo + DDD + número
     const linhas = [
       "NOME,TELEFONE,TENTATIVAS,STATUS",
-      ...resultado.contatos.map((c) => `"${c.nome.replace(/"/g, '""')}",${c.telefone},0,PENDENTE`),
+      ...resultado.contatos.map(
+        (c) => `"${c.nome.replace(/"/g, '""')}",${prefixo}${c.telefone},0,PENDENTE`
+      ),
     ];
     const blob = new Blob(["\uFEFF" + linhas.join("\r\n")], { type: "text/csv;charset=utf-8" });
     const url = URL.createObjectURL(blob);
@@ -87,14 +100,18 @@ export default function ConferenciaPlanilha({ analise, arquivo, onPronto, onRemo
       {/* Prévia da conversão */}
       {resultado.contatos.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-white/10">
-          <div className="grid grid-cols-2 bg-navy-800 px-3 py-2 text-xs font-semibold text-slate-400">
+          <div className="grid grid-cols-3 bg-navy-800 px-3 py-2 text-xs font-semibold text-slate-400">
             <span>Nome</span>
-            <span>Telefone padronizado</span>
+            <span>Telefone</span>
+            <span>Como será discado</span>
           </div>
           {resultado.contatos.slice(0, 4).map((c, i) => (
-            <div key={i} className="grid grid-cols-2 border-t border-white/5 px-3 py-2 text-sm">
+            <div key={i} className="grid grid-cols-3 border-t border-white/5 px-3 py-2 text-sm">
               <span className="truncate text-slate-300">{c.nome || "—"}</span>
               <span className="text-slate-300">{formatarExibicao(c.telefone)}</span>
+              <span className="font-mono text-xs text-brand-blue">
+                {prefixo ? `${prefixo}${c.telefone}` : `+55${c.telefone}`}
+              </span>
             </div>
           ))}
           {resultado.contatos.length > 4 && (
@@ -165,9 +182,16 @@ export default function ConferenciaPlanilha({ analise, arquivo, onPronto, onRemo
       )}
 
       {resultado.contatos.length > 0 && (
-        <button onClick={baixarCorrigida} className="btn-fantasma self-start text-xs">
-          <Download size={13} /> Baixar planilha padronizada
-        </button>
+        <div className="flex flex-wrap items-center gap-3">
+          <button onClick={baixarCorrigida} className="btn-fantasma text-xs">
+            <Download size={13} /> Baixar planilha padronizada
+          </button>
+          {prefixo && (
+            <span className="text-xs text-slate-500">
+              com o prefixo do tronco <b className="text-slate-400">{prefixo}</b> já aplicado
+            </span>
+          )}
+        </div>
       )}
     </div>
   );

@@ -22,8 +22,9 @@ export const maxDuration = 60;
  * O QUE ACONTECE A CADA call_ended:
  *   1. Classifica: CONCLUIDA (atendeu E falou > 13s) ou falha
  *      (+1 tentativa, volta a PENDENTE; na 7ª vira ESGOTADO)
- *   2. COBRA a ligação, proporcional aos segundos falados.
- *      Caixa postal e queda rápida não são cobradas.
+ *   2. COBRA a ligação, proporcional aos segundos conectados —
+ *      inclusive caixa postal e chamadas curtas, pois a operadora
+ *      cobra esses segundos de nós. Só chamada de 0s não gera custo.
  *   3. Se o saldo zerou, PAUSA a campanha do cliente.
  *   4. Se ainda há saldo, disca o próximo da fila.
  */
@@ -97,16 +98,16 @@ async function tratarEvento(request) {
       const { rows } = await sql`SELECT preco_minuto FROM clientes WHERE id = ${clienteId} LIMIT 1;`;
       const precoMinuto = rows[0]?.preco_minuto ?? 1.5;
 
-      let custo = 0;
-      if (atendeu && conversaReal) {
-        const cobranca = await cobrarLigacao({
-          clienteId,
-          precoMinuto,
-          duracaoMs,
-          callId: chamada.call_id, // trava anti-cobrança-dupla
-        });
-        custo = cobranca.valor;
-      }
+      // Cobra TODO segundo conectado — inclusive caixa postal e
+      // chamadas curtas — porque a operadora nos cobra por eles.
+      // A régua de sucesso (>13s) segue valendo só para o STATUS.
+      const cobranca = await cobrarLigacao({
+        clienteId,
+        precoMinuto,
+        duracaoMs,
+        callId: chamada.call_id, // trava anti-cobrança-dupla
+      });
+      const custo = cobranca.valor;
 
       // ---- 2b. Registra a chamada no histórico (alimenta o Dashboard) ----
       await sql`
