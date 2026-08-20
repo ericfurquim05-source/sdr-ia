@@ -1,15 +1,116 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles, Clock } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Sparkles, Clock, RefreshCw, CheckCircle2, ExternalLink, Loader2 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
+
+/* Link "Adicionar ao Google Agenda" de um evento (abre pré-preenchido) */
+function linkGoogle(e) {
+  const ini = new Date(e.inicio);
+  const fim = new Date(ini.getTime() + 3600000);
+  const fmt = (d) => d.toISOString().replace(/[-:]|\.\d{3}/g, "");
+  const params = new URLSearchParams({
+    action: "TEMPLATE",
+    text: e.titulo,
+    dates: `${fmt(ini)}/${fmt(fim)}`,
+    details: "Reunião agendada pela SDR IA" + (e.telefone ? ` · ${e.telefone}` : ""),
+  });
+  return `https://calendar.google.com/calendar/render?${params}`;
+}
+
+/* Card de sincronização com o Google Agenda (URL secreta iCal) */
+function SincronizarGoogle({ conectado }) {
+  const router = useRouter();
+  const [aberto, setAberto] = useState(false);
+  const [url, setUrl] = useState("");
+  const [enviando, setEnviando] = useState(false);
+  const [aviso, setAviso] = useState(null);
+
+  const salvar = async (valor) => {
+    setEnviando(true);
+    setAviso(null);
+    try {
+      const r = await fetch("/api/agenda/google", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: valor }),
+      });
+      const d = await r.json();
+      setAviso({ erro: !r.ok, texto: d.mensagem || d.erro });
+      if (r.ok) {
+        setUrl("");
+        setAberto(false);
+        router.refresh();
+      }
+    } catch {
+      setAviso({ erro: true, texto: "Falha de conexão." });
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  return (
+    <div className="card mb-4 p-4">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className={`flex items-center gap-1.5 text-sm font-medium ${conectado ? "text-emerald-400" : "text-slate-300"}`}>
+          {conectado ? <CheckCircle2 size={15} /> : <RefreshCw size={15} />}
+          {conectado ? "Google Agenda conectado" : "Sincronizar com Google Agenda"}
+        </span>
+        <p className="flex-1 text-xs text-slate-500">
+          {conectado
+            ? "A IA consulta seus compromissos do Google ao vivo e só oferece horários realmente livres."
+            : "Conecte para a IA respeitar seus compromissos do Google ao oferecer horários."}
+        </p>
+        <button onClick={() => setAberto(!aberto)} className="btn-fantasma text-xs">
+          {conectado ? "Alterar" : "Conectar"}
+        </button>
+      </div>
+
+      {aberto && (
+        <div className="mt-3 border-t border-white/5 pt-3">
+          <p className="mb-2 text-xs text-slate-400">
+            No Google Agenda: engrenagem → <b>Configurações</b> → clique na sua agenda →{" "}
+            <b>Integrar agenda</b> → copie o <b>Endereço secreto no formato iCal</b> e cole aqui:
+          </p>
+          <div className="flex gap-2">
+            <input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+              className="campo flex-1 text-xs"
+            />
+            <button
+              onClick={() => salvar(url)}
+              disabled={enviando || !url.trim()}
+              className="btn-primario !py-2 text-xs"
+            >
+              {enviando ? <Loader2 size={13} className="animate-spin" /> : "Salvar"}
+            </button>
+            {conectado && (
+              <button onClick={() => salvar("")} disabled={enviando} className="btn-fantasma text-xs">
+                Desconectar
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {aviso && (
+        <p className={`mt-3 text-xs ${aviso.erro ? "text-rose-300" : "text-emerald-300"}`}>
+          {aviso.texto}
+        </p>
+      )}
+    </div>
+  );
+}
 
 /*
  * Grade mensal com os eventos reais recebidos por props.
  * Dots violeta = reunião marcada pela IA · azul = manual.
  * Fins de semana aparecem bloqueados (fora do horário de atendimento).
  */
-export default function CalendarioGrade({ eventos }) {
+export default function CalendarioGrade({ eventos, googleConectado = false }) {
   const hoje = new Date();
   const [mesBase, setMesBase] = useState(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
   const [diaSel, setDiaSel] = useState(hoje.getDate());
@@ -48,6 +149,8 @@ export default function CalendarioGrade({ eventos }) {
         titulo="Calendário"
         subtitulo="Reuniões marcadas pela IA entram aqui sozinhas, em violeta."
       />
+
+      <SincronizarGoogle conectado={googleConectado} />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
@@ -126,6 +229,13 @@ export default function CalendarioGrade({ eventos }) {
                     <Sparkles size={11} /> Agendado pela IA
                   </p>
                 )}
+                <a
+                  href={linkGoogle(e)}
+                  target="_blank"
+                  className="mt-2 flex items-center gap-1 text-xs text-slate-500 transition hover:text-brand-blue"
+                >
+                  <ExternalLink size={11} /> Adicionar ao Google Agenda
+                </a>
               </div>
             ))}
           </div>

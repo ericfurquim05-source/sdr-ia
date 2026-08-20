@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { garantirTabelas, sql } from "@/lib/db";
+import { buscarOcupadosDoGoogle, slotOcupado } from "@/lib/google-agenda";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,15 @@ export async function POST(request) {
 
     await garantirTabelas();
 
+    // Agenda do Google (se o cliente sincronizou): busca ao vivo
+    const { rows: cli } = await sql`
+      SELECT google_ics_url FROM clientes WHERE id = ${clienteId} LIMIT 1;
+    `;
+    let google = { ok: false, intervalos: [], diasCheios: new Set() };
+    if (cli[0]?.google_ics_url) {
+      google = await buscarOcupadosDoGoogle(cli[0].google_ics_url, DIAS_A_FRENTE);
+    }
+
     // Horários já ocupados nos próximos dias
     const { rows: ocupados } = await sql`
       SELECT to_char(inicio AT TIME ZONE 'America/Sao_Paulo', 'YYYY-MM-DD HH24:00') AS slot
@@ -59,8 +69,15 @@ export async function POST(request) {
         // hoje: só horários pelo menos 2h à frente
         if (d === 0 && h <= agoraSp.getHours() + 1) continue;
 
-        const chave = `${dia.toISOString().slice(0, 10)} ${String(h).padStart(2, "0")}:00`;
+        const dataISO = dia.toISOString().slice(0, 10);
+        const chave = `${dataISO} ${String(h).padStart(2, "0")}:00`;
         if (bloqueados.has(chave)) continue;
+
+        // Colide com o Google Agenda? Pula.
+        if (google.diasCheios.has(dataISO)) continue;
+        const inicioSlot = new Date(`${dataISO}T${String(h).padStart(2, "0")}:00:00-03:00`);
+        const fimSlot = new Date(inicioSlot.getTime() + 3600000);
+        if (slotOcupado(inicioSlot, fimSlot, google.intervalos)) continue;
 
         livres.push({
           data: dia.toISOString().slice(0, 10),
@@ -73,6 +90,7 @@ export async function POST(request) {
 
     return NextResponse.json({
       horarios_livres: livres,
+      google_sincronizado: google.ok,
       regras: "Atendimento de segunda a sábado, das 08:00 às 21:00.",
     });
   } catch (e) {

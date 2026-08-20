@@ -11,9 +11,11 @@ export const dynamic = "force-dynamic";
  */
 export default async function Calendario() {
   let eventos = [];
+  let googleConectado = false;
   try {
     const cliente = await clienteLogado();
     if (cliente) {
+      googleConectado = Boolean(cliente.google_ics_url);
       await garantirTabelas();
       const { rows } = await sql`
         SELECT id, titulo, origem, telefone,
@@ -35,5 +37,5 @@ export default async function Calendario() {
     eventos = [];
   }
 
-  return <CalendarioGrade eventos={eventos} />;
+  return <CalendarioGrade eventos={eventos} googleConectado={googleConectado} />;
 }
