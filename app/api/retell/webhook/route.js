@@ -8,6 +8,7 @@ import {
   pausarCampanha,
 } from "@/lib/fila";
 import { cobrarLigacao, saldoAtual } from "@/lib/saldo";
+import { enviarTemplate, whatsappConfigurado } from "@/lib/whatsapp";
 
 export const maxDuration = 60;
 
@@ -85,10 +86,11 @@ async function tratarEvento(request) {
       const conversaReal = duracaoMs > DURACAO_MINIMA_MS;
 
       // ---- 1. Status do contato ----
+      let resultadoFalha = null;
       if (atendeu && conversaReal) {
         await registrarSucesso(contato.id, `${motivo} (${segundos}s)`);
       } else {
-        await registrarFalha(contato.id, `${motivo} (${segundos}s)`);
+        resultadoFalha = await registrarFalha(contato.id, `${motivo} (${segundos}s)`);
       }
 
       // ---- 2. Cobrança proporcional aos segundos falados ----
@@ -119,6 +121,30 @@ async function tratarEvento(request) {
         ON CONFLICT (call_id) DO NOTHING;
       `;
 
+      // ---- 2c. FOLLOW-UP AUTOMÁTICO NO WHATSAPP ----
+      // Não conseguiu contato por telefone após N tentativas?
+      // Manda o template aprovado uma única vez por contato.
+      const disparoApos = Number(process.env.WHATSAPP_APOS_TENTATIVAS || 3);
+      if (
+        resultadoFalha &&
+        !contato.whatsapp_enviado &&
+        whatsappConfigurado() &&
+        (resultadoFalha.tentativas >= disparoApos || resultadoFalha.novoStatus === "ESGOTADO")
+      ) {
+        const { rows: cli } = await sql`
+          SELECT preco_conversa FROM clientes WHERE id = ${clienteId} LIMIT 1;
+        `;
+        const envio = await enviarTemplate({
+          clienteId,
+          precoConversa: cli[0]?.preco_conversa ?? 0.5,
+          telefone: contato.telefone,
+          nome: contato.nome,
+        });
+        if (envio.ok) {
+          await sql`UPDATE contatos SET whatsapp_enviado = TRUE WHERE id = ${contato.id};`;
+        }
+      }
+
       // ---- 3. Saldo zerou? Pausa a campanha ----
       const saldo = await saldoAtual(clienteId);
       if (saldo <= 0) {
@@ -137,8 +163,30 @@ async function tratarEvento(request) {
       if (resumo && chamada.call_id) {
         await sql`UPDATE ligacoes SET resumo = ${resumo} WHERE call_id = ${chamada.call_id};`;
       }
-      // TODO: criar evento no calendário quando
-      // custom_analysis_data.reuniao_agendada = true.
+
+      // ---- REUNIÃO MARCADA PELA IA → ENTRA NO CALENDÁRIO ----
+      // Requer, no agente da Retell (Post-Call Analysis), os campos:
+      //   reuniao_agendada (boolean), data_reuniao (YYYY-MM-DD),
+      //   hora_reuniao (HH:MM)
+      const analise = chamada.call_analysis?.custom_analysis_data ?? {};
+      if (analise.reuniao_agendada && chamada.call_id) {
+        const contatoDaCall = await acharContatoDaChamada(chamada.metadata, chamada.call_id);
+        if (contatoDaCall) {
+          const data = String(analise.data_reuniao || "").trim();
+          const hora = String(analise.hora_reuniao || "09:00").trim();
+          if (/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+            await sql`
+              INSERT INTO eventos (cliente_id, titulo, inicio, origem, telefone, call_id)
+              SELECT
+                ${contatoDaCall.cliente_id},
+                ${"Reunião — " + (contatoDaCall.nome || contatoDaCall.telefone)},
+                (${data + " " + hora})::timestamp AT TIME ZONE 'America/Sao_Paulo',
+                'ia', ${contatoDaCall.telefone}, ${chamada.call_id}
+              WHERE NOT EXISTS (SELECT 1 FROM eventos WHERE call_id = ${chamada.call_id});
+            `;
+          }
+        }
+      }
       break;
     }
 
