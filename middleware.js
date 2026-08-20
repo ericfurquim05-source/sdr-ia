@@ -12,6 +12,7 @@ export function middleware(request) {
 
   const rotaPublica =
     pathname.startsWith("/login") ||
+    pathname.startsWith("/privacidade") ||              // exigência da Meta: precisa ser pública
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/retell") ||          // webhook da Retell vem de fora
     pathname.startsWith("/api/campanhas/processar") || // cron da Vercel vem sem cookie
