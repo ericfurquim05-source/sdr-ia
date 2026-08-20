@@ -183,7 +183,14 @@ async function tratarEvento(request) {
                 ${"Reunião — " + (contatoDaCall.nome || contatoDaCall.telefone)},
                 (${data + " " + hora})::timestamp AT TIME ZONE 'America/Sao_Paulo',
                 'ia', ${contatoDaCall.telefone}, ${chamada.call_id}
-              WHERE NOT EXISTS (SELECT 1 FROM eventos WHERE call_id = ${chamada.call_id});
+              -- Evita duplicar: a função agendar_reuniao já pode ter gravado
+              -- este compromisso durante a ligação.
+              WHERE NOT EXISTS (
+                SELECT 1 FROM eventos
+                WHERE call_id = ${chamada.call_id}
+                   OR (cliente_id = ${contatoDaCall.cliente_id}
+                       AND inicio = (${data + " " + hora})::timestamp AT TIME ZONE 'America/Sao_Paulo')
+              );
             `;
           }
         }

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/Interface";
 import FiltroPeriodo from "@/components/FiltroPeriodo";
+import { detectarSinais, ehOportunidade } from "@/lib/sinais";
 
 /*
  * Lista de chamadas REAIS (tabela ligacoes): player com a gravação
@@ -79,7 +80,10 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
   const [filtro, setFiltro] = useState("Todas");
   const [aberto, setAberto] = useState(ligacoes[0]?.id ?? null);
 
-  const chips = ["Todas", "Atendida", "Não atendida"];
+  const chips = ["Todas", "Oportunidades", "Atendida", "Não atendida"];
+
+  // Etiquetas detectadas na conversa (projeto futuro, pediu WhatsApp, etc.)
+  const sinaisDe = (l) => detectarSinais(l);
 
   const trocarOrdem = (novaOrdem) => {
     router.push(`/sdr-ia?de=${de}&ate=${ate}&ordem=${novaOrdem}`);
@@ -90,10 +94,14 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
   const statusDe = (l) => (l.sucesso ? "Atendida" : "Não atendida");
 
   const lista = ligacoes.filter((l) => {
-    const okFiltro = filtro === "Todas" || statusDe(l) === filtro;
+    const okFiltro =
+      filtro === "Todas" ||
+      (filtro === "Oportunidades" ? ehOportunidade(sinaisDe(l)) : statusDe(l) === filtro);
     const okBusca = (l.nome + " " + l.telefone).toLowerCase().includes(busca.toLowerCase());
     return okFiltro && okBusca;
   });
+
+  const totalOportunidades = ligacoes.filter((l) => ehOportunidade(sinaisDe(l))).length;
 
   const fmtHora = (iso) =>
     new Date(iso).toLocaleString("pt-BR", {
@@ -125,6 +133,9 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
         </span>
         <span className="text-slate-400">
           <b className="text-emerald-300">{totais?.atendidas ?? 0}</b> atendidas
+        </span>
+        <span className="text-slate-400">
+          <b className="text-amber-300">{totalOportunidades}</b> oportunidades
         </span>
         <span className="flex items-center gap-1.5 text-slate-400">
           <Timer size={13} /> <b className="text-white">{minutosTotais}</b> min no total
@@ -186,8 +197,14 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
       )}
 
       <div className="flex flex-col gap-3">
-        {lista.map((l) => (
-          <div key={l.id} className="card overflow-hidden">
+        {lista.map((l) => {
+          const sinais = sinaisDe(l);
+          const quente = ehOportunidade(sinais);
+          return (
+          <div
+            key={l.id}
+            className={`card overflow-hidden ${quente ? "border-amber-400/40" : ""}`}
+          >
             <button
               onClick={() => setAberto(aberto === l.id ? null : l.id)}
               className="flex w-full items-center gap-3 p-4 text-left"
@@ -220,6 +237,25 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
               <StatusBadge status={l.sucesso ? "Atendida" : "Não atendida"} />
             </button>
 
+            {/* Etiquetas da conversa — estilo post-it */}
+            {sinais.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                {sinais.map((s) => (
+                  <span
+                    key={s.id}
+                    className="rounded-md px-2 py-0.5 text-xs font-semibold"
+                    style={{
+                      background: `${s.cor}22`,
+                      color: s.cor,
+                      border: `1px solid ${s.cor}55`,
+                    }}
+                  >
+                    {s.rotulo}
+                  </span>
+                ))}
+              </div>
+            )}
+
             {aberto === l.id && (
               <div className="flex flex-col gap-3 px-4 pb-4">
                 {l.recording_url ? (
@@ -243,7 +279,8 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
               </div>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
     </>
   );
