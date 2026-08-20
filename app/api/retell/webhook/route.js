@@ -95,16 +95,29 @@ async function tratarEvento(request) {
       const { rows } = await sql`SELECT preco_minuto FROM clientes WHERE id = ${clienteId} LIMIT 1;`;
       const precoMinuto = rows[0]?.preco_minuto ?? 1.5;
 
+      let custo = 0;
       if (atendeu && conversaReal) {
-        await cobrarLigacao({
+        const cobranca = await cobrarLigacao({
           clienteId,
           precoMinuto,
           duracaoMs,
           callId: chamada.call_id, // trava anti-cobrança-dupla
         });
+        custo = cobranca.valor;
       }
 
-      // TODO: salvar recording_url e transcript para a aba SDR IA.
+      // ---- 2b. Registra a chamada no histórico (alimenta o Dashboard) ----
+      await sql`
+        INSERT INTO ligacoes
+          (cliente_id, contato_id, call_id, nome, telefone, agente,
+           duracao_ms, motivo, sucesso, custo, recording_url, transcript)
+        VALUES
+          (${clienteId}, ${contato.id}, ${chamada.call_id ?? null}, ${contato.nome ?? ""},
+           ${contato.telefone ?? ""}, ${contato.agente ?? "fria"}, ${duracaoMs}, ${motivo},
+           ${atendeu && conversaReal}, ${custo}, ${chamada.recording_url ?? null},
+           ${typeof chamada.transcript === "string" ? chamada.transcript : null})
+        ON CONFLICT (call_id) DO NOTHING;
+      `;
 
       // ---- 3. Saldo zerou? Pausa a campanha ----
       const saldo = await saldoAtual(clienteId);
@@ -118,10 +131,16 @@ async function tratarEvento(request) {
       break;
     }
 
-    case "call_analyzed":
-      // TODO: salvar call_analysis.call_summary e criar evento no
-      // calendário quando custom_analysis_data.reuniao_agendada = true.
+    case "call_analyzed": {
+      // Salva o resumo pós-chamada gerado pela Retell
+      const resumo = chamada.call_analysis?.call_summary;
+      if (resumo && chamada.call_id) {
+        await sql`UPDATE ligacoes SET resumo = ${resumo} WHERE call_id = ${chamada.call_id};`;
+      }
+      // TODO: criar evento no calendário quando
+      // custom_analysis_data.reuniao_agendada = true.
       break;
+    }
 
     default:
       break;
