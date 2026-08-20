@@ -18,6 +18,8 @@ export async function GET(request) {
   const okData = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || ""));
   const de = okData(url.searchParams.get("de")) ? url.searchParams.get("de") : "2000-01-01";
   const ate = okData(url.searchParams.get("ate")) ? url.searchParams.get("ate") : "2100-01-01";
+  const h = Number(url.searchParams.get("horas"));
+  const horas = Number.isFinite(h) && h > 0 ? h : null;
 
   await garantirTabelas();
   const { rows } = await sql`
@@ -27,7 +29,10 @@ export async function GET(request) {
            motivo, sucesso, custo::float AS custo, COALESCE(resumo, '') AS resumo
     FROM ligacoes
     WHERE cliente_id = ${cliente.id}
-      AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date
+      AND (
+        (${horas}::int IS NULL AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date)
+        OR (${horas}::int IS NOT NULL AND criado_em > NOW() - (${horas}::int * INTERVAL '1 hour'))
+      )
     ORDER BY criado_em DESC LIMIT 5000;
   `;
 

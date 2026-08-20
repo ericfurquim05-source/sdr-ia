@@ -1,7 +1,7 @@
 import ChamadasReais from "@/components/ChamadasReais";
 import { clienteLogado } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
-import { hojeSP, dataValida } from "@/lib/estatisticas";
+import { hojeSP, lerJanela } from "@/lib/estatisticas";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +20,7 @@ export default async function SdrIa({ searchParams }) {
   const trintaDias = new Date(Date.now() - 29 * 86400000).toLocaleDateString("en-CA", {
     timeZone: "America/Sao_Paulo",
   });
-  let de = dataValida(searchParams?.de, trintaDias);
-  let ate = dataValida(searchParams?.ate, hoje);
-  if (de > ate) [de, ate] = [ate, de];
+  const { de, ate, horas } = lerJanela(searchParams, trintaDias, hoje);
 
   const ordem = ORDENS.includes(searchParams?.ordem) ? searchParams.ordem : "duracao_desc";
 
@@ -40,7 +38,10 @@ export default async function SdrIa({ searchParams }) {
                recording_url, transcript, resumo, criado_em
         FROM ligacoes
         WHERE cliente_id = ${cliente.id}
-          AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date
+          AND (
+            (${horas}::int IS NULL AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date)
+            OR (${horas}::int IS NOT NULL AND criado_em > NOW() - (${horas}::int * INTERVAL '1 hour'))
+          )
         ORDER BY
           CASE WHEN ${ordem} = 'duracao_desc' THEN duracao_ms END DESC,
           CASE WHEN ${ordem} = 'duracao_asc'  THEN duracao_ms END ASC,
@@ -56,7 +57,10 @@ export default async function SdrIa({ searchParams }) {
                COALESCE(SUM(duracao_ms), 0)::bigint AS ms_total
         FROM ligacoes
         WHERE cliente_id = ${cliente.id}
-          AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date;
+          AND (
+            (${horas}::int IS NULL AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date)
+            OR (${horas}::int IS NOT NULL AND criado_em > NOW() - (${horas}::int * INTERVAL '1 hour'))
+          );
       `;
       totais = {
         total: agg[0].total,
@@ -69,6 +73,13 @@ export default async function SdrIa({ searchParams }) {
   }
 
   return (
-    <ChamadasReais ligacoes={ligacoes} de={de} ate={ate} ordem={ordem} totais={totais} />
+    <ChamadasReais
+      ligacoes={ligacoes}
+      de={de}
+      ate={ate}
+      horas={horas}
+      ordem={ordem}
+      totais={totais}
+    />
   );
 }

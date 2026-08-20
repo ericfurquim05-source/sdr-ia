@@ -74,7 +74,7 @@ const OPCOES_ORDEM = [
   { id: "antigas", rotulo: "Mais antigas" },
 ];
 
-export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
+export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todas");
@@ -86,7 +86,8 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
   const sinaisDe = (l) => detectarSinais(l);
 
   const trocarOrdem = (novaOrdem) => {
-    router.push(`/sdr-ia?de=${de}&ate=${ate}&ordem=${novaOrdem}`);
+    const janela = horas ? `horas=${horas}` : `de=${de}&ate=${ate}`;
+    router.push(`/sdr-ia?${janela}&ordem=${novaOrdem}`);
   };
 
   const minutosTotais = Math.round((totais?.msTotal ?? 0) / 60000);
@@ -142,7 +143,7 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
         titulo="SDR IA"
         subtitulo="Histórico real das ligações — gravação, resumo e transcrição."
       >
-        <FiltroPeriodo de={de} ate={ate} base="/sdr-ia" extra={`&ordem=${ordem}`} />
+        <FiltroPeriodo de={de} ate={ate} horas={horas} base="/sdr-ia" extra={`&ordem=${ordem}`} />
         <button onClick={importarHistorico} disabled={importando} className="btn-fantasma text-sm">
           {importando ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
           Importar da Retell
@@ -156,7 +157,8 @@ export default function ChamadasReais({ ligacoes, de, ate, ordem, totais }) {
       {/* Resumo do período selecionado */}
       <div className="card mb-4 flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
         <span className="text-slate-400">
-          <b className="text-white">{totais?.total ?? 0}</b> ligações no período
+          <b className="text-white">{totais?.total ?? 0}</b>{" "}
+          {horas ? `ligações nas últimas ${horas}h` : "ligações no período"}
         </span>
         <span className="text-slate-400">
           <b className="text-emerald-300">{totais?.atendidas ?? 0}</b> atendidas

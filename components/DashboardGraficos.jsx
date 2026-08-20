@@ -14,7 +14,7 @@ import FiltroPeriodo from "@/components/FiltroPeriodo";
  * Parte visual do Dashboard. Recebe os números REAIS por props,
  * já filtrados pelo período escolhido no FiltroPeriodo.
  */
-export default function DashboardGraficos({ kpis, serie, desfechos, de, ate }) {
+export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, horas }) {
   const brl = (v) =>
     Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -61,9 +61,9 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate }) {
   return (
     <>
       <PageHeader titulo="Dashboard" subtitulo="Resultados reais da sua prospecção por voz.">
-        <FiltroPeriodo de={de} ate={ate} />
+        <FiltroPeriodo de={de} ate={ate} horas={horas} />
         <a
-          href={`/api/relatorio/ligacoes?de=${de}&ate=${ate}`}
+          href={`/api/relatorio/ligacoes?de=${de}&ate=${ate}${horas ? `&horas=${horas}` : ""}`}
           className="btn-fantasma text-sm"
           download
         >
@@ -109,7 +109,9 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate }) {
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="card p-5 lg:col-span-2">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="font-semibold text-white">Evolução no período</h2>
+            <h2 className="font-semibold text-white">
+              {horas ? `Últimas ${horas}h, hora a hora` : "Evolução no período"}
+            </h2>
             <div className="flex items-center gap-4 text-xs text-slate-500">
               <span className="flex items-center gap-1.5">
                 <span className="inline-block h-2 w-2 rounded-full bg-brand-blue" /> Ligações

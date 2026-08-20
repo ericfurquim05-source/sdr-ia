@@ -2,7 +2,7 @@ import DashboardGraficos from "@/components/DashboardGraficos";
 import AutoRetomada from "@/components/AutoRetomada";
 import { clienteLogado } from "@/lib/auth";
 import {
-  kpisDoPeriodo, seriePorDia, desfechosDoPeriodo, hojeSP, dataValida,
+  kpisDoPeriodo, seriePorDia, desfechosDoPeriodo, hojeSP, lerJanela,
 } from "@/lib/estatisticas";
 
 export const dynamic = "force-dynamic";
@@ -13,9 +13,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function Dashboard({ searchParams }) {
   const hoje = hojeSP();
-  let de = dataValida(searchParams?.de, hoje);
-  let ate = dataValida(searchParams?.ate, hoje);
-  if (de > ate) [de, ate] = [ate, de]; // usuário inverteu as datas
+  const { de, ate, horas } = lerJanela(searchParams, hoje, hoje);
 
   const vazio = {
     kpis: {
@@ -33,9 +31,9 @@ export default async function Dashboard({ searchParams }) {
     const cliente = await clienteLogado();
     if (cliente) {
       const [kpis, serie, desfechos] = await Promise.all([
-        kpisDoPeriodo(cliente.id, de, ate),
-        seriePorDia(cliente.id, de, ate),
-        desfechosDoPeriodo(cliente.id, de, ate),
+        kpisDoPeriodo(cliente.id, de, ate, horas),
+        seriePorDia(cliente.id, de, ate, horas),
+        desfechosDoPeriodo(cliente.id, de, ate, horas),
       ]);
       dados = { kpis, serie, desfechos };
     }
@@ -46,7 +44,7 @@ export default async function Dashboard({ searchParams }) {
   return (
     <>
       <AutoRetomada />
-      <DashboardGraficos {...dados} de={de} ate={ate} />
+      <DashboardGraficos {...dados} de={de} ate={ate} horas={horas} />
     </>
   );
 }

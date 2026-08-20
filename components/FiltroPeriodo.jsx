@@ -36,22 +36,38 @@ function calcularPresets() {
   ];
 }
 
-export default function FiltroPeriodo({ de, ate, base = "/", extra = "" }) {
+const PRESETS_HORA = [
+  { rotulo: "Última hora", horas: 1 },
+  { rotulo: "Últimas 3 horas", horas: 3 },
+  { rotulo: "Últimas 6 horas", horas: 6 },
+  { rotulo: "Últimas 12 horas", horas: 12 },
+  { rotulo: "Últimas 24 horas", horas: 24 },
+];
+
+export default function FiltroPeriodo({ de, ate, horas = null, base = "/", extra = "" }) {
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
   const [deCustom, setDeCustom] = useState(de);
   const [ateCustom, setAteCustom] = useState(ate);
 
   const presets = useMemo(calcularPresets, []);
-  const ativo = presets.find((p) => p.de === de && p.ate === ate);
-  const rotuloBotao = ativo
-    ? ativo.rotulo
-    : `${de.split("-").reverse().join("/")} — ${ate.split("-").reverse().join("/")}`;
+  const ativoHora = PRESETS_HORA.find((p) => p.horas === horas);
+  const ativo = !horas && presets.find((p) => p.de === de && p.ate === ate);
+  const rotuloBotao = ativoHora
+    ? ativoHora.rotulo
+    : ativo
+      ? ativo.rotulo
+      : `${de.split("-").reverse().join("/")} — ${ate.split("-").reverse().join("/")}`;
 
   const aplicar = (novoDe, novoAte) => {
     setAberto(false);
     // "extra" preserva outros parâmetros da página (ex.: ordenação)
     router.push(`${base}?de=${novoDe}&ate=${novoAte}${extra}`);
+  };
+
+  const aplicarHoras = (h) => {
+    setAberto(false);
+    router.push(`${base}?horas=${h}${extra}`);
   };
 
   return (
@@ -66,7 +82,30 @@ export default function FiltroPeriodo({ de, ate, base = "/", extra = "" }) {
         <>
           {/* clique fora fecha */}
           <div className="fixed inset-0 z-10" onClick={() => setAberto(false)} />
-          <div className="card absolute right-0 z-20 mt-2 w-72 p-3">
+          <div className="card absolute right-0 z-20 mt-2 max-h-[70vh] w-72 overflow-y-auto p-3">
+            {/* Acompanhamento ao vivo */}
+            <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Ao vivo
+            </p>
+            <div className="mb-2 flex flex-col border-b border-white/5 pb-2">
+              {PRESETS_HORA.map((p) => (
+                <button
+                  key={p.horas}
+                  onClick={() => aplicarHoras(p.horas)}
+                  className={`rounded-lg px-3 py-2 text-left text-sm transition ${
+                    horas === p.horas
+                      ? "bg-gradient-to-r from-brand-blue/25 to-brand-violet/25 text-white"
+                      : "text-slate-300 hover:bg-navy-800"
+                  }`}
+                >
+                  {p.rotulo}
+                </button>
+              ))}
+            </div>
+
+            <p className="mb-1 px-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Por data
+            </p>
             <div className="flex flex-col">
               {presets.map((p) => (
                 <button
