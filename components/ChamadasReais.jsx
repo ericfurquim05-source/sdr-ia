@@ -2,10 +2,10 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer, DownloadCloud, Loader2 } from "lucide-react";
+import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer, DownloadCloud, Loader2, ArrowUp, ArrowDown, Flame } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/Interface";
 import FiltroPeriodo from "@/components/FiltroPeriodo";
-import { detectarSinais, ehOportunidade } from "@/lib/sinais";
+import { detectarSinais, ehOportunidade, nivelPrioridade } from "@/lib/sinais";
 
 /*
  * Lista de chamadas REAIS (tabela ligacoes): player com a gravação
@@ -80,7 +80,7 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
   const [filtro, setFiltro] = useState("Todas");
   const [aberto, setAberto] = useState(ligacoes[0]?.id ?? null);
 
-  const chips = ["Todas", "Oportunidades", "Atendida", "Não atendida"];
+  const chips = ["Todas", "Prioridade alta", "Prioridade baixa", "Atendida", "Não atendida"];
 
   // Etiquetas detectadas na conversa (projeto futuro, pediu WhatsApp, etc.)
   const sinaisDe = (l) => detectarSinais(l);
@@ -114,16 +114,21 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
   const statusDe = (l) => (l.sucesso ? "Atendida" : "Não atendida");
 
   const lista = ligacoes.filter((l) => {
+    const nivel = nivelPrioridade(sinaisDe(l), l.duracao_ms);
     const okFiltro =
-      filtro === "Todas" ||
-      (filtro === "Oportunidades"
-        ? ehOportunidade(sinaisDe(l), l.duracao_ms)
-        : statusDe(l) === filtro);
+      filtro === "Todas"
+        ? true
+        : filtro === "Prioridade alta"
+          ? nivel === "alta"
+          : filtro === "Prioridade baixa"
+            ? nivel === "baixa"
+            : statusDe(l) === filtro;
     const okBusca = (l.nome + " " + l.telefone).toLowerCase().includes(busca.toLowerCase());
     return okFiltro && okBusca;
   });
 
-  const totalOportunidades = ligacoes.filter((l) => ehOportunidade(sinaisDe(l), l.duracao_ms)).length;
+  const totalAlta = ligacoes.filter((l) => nivelPrioridade(sinaisDe(l), l.duracao_ms) === "alta").length;
+  const totalBaixa = ligacoes.filter((l) => nivelPrioridade(sinaisDe(l), l.duracao_ms) === "baixa").length;
 
   const fmtHora = (iso) =>
     new Date(iso).toLocaleString("pt-BR", {
@@ -166,7 +171,10 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
           <b className="text-emerald-300">{totais?.atendidas ?? 0}</b> atendidas
         </span>
         <span className="text-slate-400">
-          <b className="text-amber-300">{totalOportunidades}</b> oportunidades
+          <b className="text-rose-300">{totalAlta}</b> prioridade alta
+        </span>
+        <span className="text-slate-400">
+          <b className="text-amber-300">{totalBaixa}</b> prioridade baixa
         </span>
         <span className="flex items-center gap-1.5 text-slate-400">
           <Timer size={13} /> <b className="text-white">{minutosTotais}</b> min no total
@@ -191,6 +199,16 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
             {o.rotulo}
           </button>
         ))}
+
+        {/* Inverte data: mais recente primeiro ou mais antiga primeiro */}
+        <button
+          onClick={() => trocarOrdem(ordem === "antigas" ? "recentes" : "antigas")}
+          title={ordem === "antigas" ? "Mostrando as mais antigas primeiro" : "Mostrando as mais recentes primeiro"}
+          className="ml-auto flex items-center gap-1 rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-400 transition hover:text-white"
+        >
+          {ordem === "antigas" ? <ArrowUp size={12} /> : <ArrowDown size={12} />}
+          {ordem === "antigas" ? "Mais antigas" : "Mais recentes"}
+        </button>
       </div>
 
       <div className="mb-5 flex flex-col gap-3 sm:flex-row">
@@ -221,20 +239,27 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
       </div>
 
       {lista.length === 0 && (
-        <div className="card p-8 text-center text-sm text-slate-500">
-          Nenhuma ligação neste período. Ajuste o filtro de data acima ou aguarde a
-          campanha rodar.
+        <div className="card flex flex-col items-center gap-2 p-8 text-center">
+          <Search size={22} className="text-slate-600" />
+          <p className="text-sm text-slate-400">Nenhuma ligação neste período.</p>
+          <p className="max-w-md text-xs leading-relaxed text-slate-600">
+            Aqui fica o histórico completo: gravação, resumo da IA e transcrição de cada
+            conversa. Ajuste o filtro de data acima ou use &quot;Importar da Retell&quot;
+            para trazer ligações já realizadas.
+          </p>
         </div>
       )}
 
       <div className="flex flex-col gap-3">
         {lista.map((l) => {
           const sinais = sinaisDe(l);
-          const quente = ehOportunidade(sinais, l.duracao_ms);
+          const nivel = nivelPrioridade(sinais, l.duracao_ms);
           return (
           <div
             key={l.id}
-            className={`card overflow-hidden ${quente ? "border-amber-400/40" : ""}`}
+            className={`card overflow-hidden ${
+              nivel === "alta" ? "border-rose-400/40" : nivel === "baixa" ? "border-amber-400/30" : ""
+            }`}
           >
             <button
               onClick={() => setAberto(aberto === l.id ? null : l.id)}
@@ -269,8 +294,19 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
             </button>
 
             {/* Etiquetas da conversa — estilo post-it */}
-            {sinais.length > 0 && (
+            {(sinais.length > 0 || nivel) && (
               <div className="flex flex-wrap gap-1.5 px-4 pb-3">
+                {nivel && (
+                  <span
+                    className={`flex items-center gap-1 rounded-md px-2 py-0.5 text-xs font-bold ${
+                      nivel === "alta"
+                        ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40"
+                        : "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/30"
+                    }`}
+                  >
+                    <Flame size={11} /> {nivel === "alta" ? "PRIORIDADE ALTA" : "PRIORIDADE BAIXA"}
+                  </span>
+                )}
                 {sinais.map((s) => (
                   <span
                     key={s.id}

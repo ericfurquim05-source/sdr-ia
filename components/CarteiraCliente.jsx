@@ -171,9 +171,13 @@ export default function CarteiraCliente({ saldo, precoMinuto, consumoMes, extrat
       <p className="mb-3 text-sm font-semibold text-white">Extrato</p>
       <div className="card divide-y divide-white/5">
         {extrato.length === 0 && (
-          <p className="p-6 text-center text-sm text-slate-500">
-            Nenhuma movimentação ainda.
-          </p>
+          <div className="flex flex-col items-center gap-2 p-8 text-center">
+            <p className="text-sm text-slate-400">Nenhuma movimentação ainda.</p>
+            <p className="max-w-sm text-xs leading-relaxed text-slate-600">
+              Cada ligação é debitada por segundo falado, e cada recarga aparece aqui.
+              Você acompanha centavo por centavo onde o saldo foi usado.
+            </p>
+          </div>
         )}
         {extrato.map((t) => (
           <div key={t.id} className="flex items-center gap-3 p-4">

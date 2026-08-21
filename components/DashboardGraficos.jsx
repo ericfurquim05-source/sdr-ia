@@ -9,12 +9,13 @@ import {
 } from "recharts";
 import { PageHeader } from "@/components/Interface";
 import FiltroPeriodo from "@/components/FiltroPeriodo";
+import PainelAoVivo from "@/components/PainelAoVivo";
 
 /*
  * Parte visual do Dashboard. Recebe os números REAIS por props,
  * já filtrados pelo período escolhido no FiltroPeriodo.
  */
-export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, horas }) {
+export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, horas, aoVivo }) {
   const brl = (v) =>
     Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -71,6 +72,8 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, hor
         </a>
       </PageHeader>
 
+      <PainelAoVivo inicial={aoVivo} />
+
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-4">
         {cardsVolume.map((c) => (
           <div key={c.titulo} className="card p-4">
@@ -100,6 +103,31 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, hor
           );
         })}
       </div>
+
+      {/* Quanto isso custaria com um SDR humano */}
+      {kpis.total > 0 && (
+        <div className="card mb-6 flex flex-wrap items-center gap-x-8 gap-y-3 border-emerald-500/20 bg-emerald-500/5 p-4">
+          <div>
+            <p className="font-display text-2xl font-bold text-white">{kpis.total}</p>
+            <p className="text-xs text-slate-400">ligações feitas pela IA</p>
+          </div>
+          <div>
+            <p className="font-display text-2xl font-bold text-white">{brl(kpis.custo)}</p>
+            <p className="text-xs text-slate-400">foi o que custou</p>
+          </div>
+          <div className="hidden text-slate-700 sm:block">|</div>
+          <div>
+            <p className="font-display text-2xl font-bold text-slate-400">
+              {Math.ceil(kpis.total / 40)} {Math.ceil(kpis.total / 40) === 1 ? "dia" : "dias"}
+            </p>
+            <p className="text-xs text-slate-500">um SDR humano levaria (40 ligações/dia)</p>
+          </div>
+          <p className="ml-auto max-w-xs text-xs leading-relaxed text-emerald-300/80">
+            A IA trabalha em paralelo, sem pausa e sem salário fixo. Você paga só pelos
+            minutos falados.
+          </p>
+        </div>
+      )}
 
       {/* Situação da fila AGORA (independente do período) */}
       <div className="card mb-6 flex flex-wrap items-center gap-x-6 gap-y-2 p-4 text-sm">
@@ -161,9 +189,16 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, hor
         <div className="card p-5">
           <h2 className="mb-4 font-semibold text-white">Desfecho das ligações</h2>
           {desfechos.length === 0 ? (
-            <p className="text-sm text-slate-500">
-              Nenhuma ligação neste período. Ajuste o filtro ou suba uma lista em Campanhas.
-            </p>
+            <div className="flex flex-col gap-2 py-4">
+              <p className="text-sm text-slate-400">Nenhuma ligação neste período.</p>
+              <p className="text-xs leading-relaxed text-slate-600">
+                Aqui você vai ver como cada ligação terminou: atendida, caixa postal, não
+                atendida ou erro de operadora — para saber onde a campanha está travando.
+              </p>
+              <a href="/campanhas" className="btn-primario mt-2 self-start !py-2 text-xs">
+                Subir minha primeira lista
+              </a>
+            </div>
           ) : (
             <div className="flex flex-col gap-3">
               {desfechos.map((d) => {
