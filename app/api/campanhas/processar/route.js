@@ -20,8 +20,16 @@ export const maxDuration = 60;
  * Nada aqui pode devolver tela de erro 500 em branco: qualquer
  * exceção volta como JSON legível, senão fica impossível depurar.
  */
-export async function GET() {
+export async function GET(request) {
   try {
+    // Quem pode acionar a fila:
+    //  - o cliente logado (retoma a própria campanha)
+    //  - o cron da Vercel, que envia o CRON_SECRET no cabeçalho
+    // Sem isso, qualquer pessoa com a URL faria o sistema discar.
+    const segredo = process.env.CRON_SECRET;
+    const autorizacao = request.headers.get("authorization") || "";
+    const ehCron = Boolean(segredo) && autorizacao === `Bearer ${segredo}`;
+
     if (!process.env.POSTGRES_URL) {
       return NextResponse.json(
         { erro: true, mensagem: "Banco não configurado. Crie um Postgres em Storage e conecte ao projeto." },

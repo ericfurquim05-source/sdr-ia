@@ -45,7 +45,9 @@ RECUSA
 FORMATO DE SAÍDA
 Devolva APENAS o roteiro reescrito, pronto para colar, organizado em blocos com tags
 em minúsculas (exemplo: <abertura>, <conversa>, <agendamento>).
-Não escreva comentários, explicações nem introdução. Só o roteiro.
+Comece a resposta diretamente pela primeira tag do roteiro.
+NÃO escreva raciocínio, análise, comentário, introdução, despedida nem blocos
+<thinking>. Nada além do roteiro. O texto vai direto para um campo que o cliente lê.
 Mantenha o idioma, o objetivo e as informações da empresa que vieram no original.
 Se o original mencionar funções de agendamento, preserve as instruções sobre elas.`;
 
@@ -98,11 +100,24 @@ export async function POST(request) {
     }
 
     const dados = await resposta.json();
-    const texto = dados?.content?.find((c) => c.type === "text")?.text?.trim();
+    let texto = dados?.content?.find((c) => c.type === "text")?.text?.trim();
 
     if (!texto) {
       return NextResponse.json({ erro: "A IA não devolveu texto." }, { status: 502 });
     }
+
+    // O modelo às vezes escreve o raciocínio antes do resultado.
+    // Isso não pode aparecer no campo que o cliente vê.
+    texto = texto
+      .replace(/<thinking>[\s\S]*?<\/thinking>/gi, "")
+      .replace(/<raciocinio>[\s\S]*?<\/raciocinio>/gi, "")
+      .replace(/^```[a-z]*\n?/i, "")
+      .replace(/\n?```$/i, "")
+      .trim();
+
+    // Se sobrou preâmbulo antes do primeiro bloco, corta tudo antes dele
+    const primeiroBloco = texto.search(/<[a-z_]+>/);
+    if (primeiroBloco > 0) texto = texto.slice(primeiroBloco).trim();
 
     return NextResponse.json({ ok: true, prompt: texto });
   } catch (e) {
