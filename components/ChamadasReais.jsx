@@ -116,12 +116,14 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
   const lista = ligacoes.filter((l) => {
     const okFiltro =
       filtro === "Todas" ||
-      (filtro === "Oportunidades" ? ehOportunidade(sinaisDe(l)) : statusDe(l) === filtro);
+      (filtro === "Oportunidades"
+        ? ehOportunidade(sinaisDe(l), l.duracao_ms)
+        : statusDe(l) === filtro);
     const okBusca = (l.nome + " " + l.telefone).toLowerCase().includes(busca.toLowerCase());
     return okFiltro && okBusca;
   });
 
-  const totalOportunidades = ligacoes.filter((l) => ehOportunidade(sinaisDe(l))).length;
+  const totalOportunidades = ligacoes.filter((l) => ehOportunidade(sinaisDe(l), l.duracao_ms)).length;
 
   const fmtHora = (iso) =>
     new Date(iso).toLocaleString("pt-BR", {
@@ -228,7 +230,7 @@ export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais 
       <div className="flex flex-col gap-3">
         {lista.map((l) => {
           const sinais = sinaisDe(l);
-          const quente = ehOportunidade(sinais);
+          const quente = ehOportunidade(sinais, l.duracao_ms);
           return (
           <div
             key={l.id}
