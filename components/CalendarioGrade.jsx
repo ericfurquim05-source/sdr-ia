@@ -154,14 +154,16 @@ export default function CalendarioGrade({ eventos, livres = [], googleConectado 
       e,
     ])
   );
-  const gradeDoDia = Array.from({ length: 13 }, (_, i) => {
-    const hora = `${String(i + 8).padStart(2, "0")}:00`;
+  // Só as horas dentro das janelas de reunião entram na grade.
+  // As faixas vêm do servidor (mesmas que a Lara usa na ligação).
+  const horasDaGrade = [...new Set(livres.map((l) => Number(l.hora.slice(0, 2))))].sort(
+    (a, b) => a - b
+  );
+  const faixas = horasDaGrade.length ? horasDaGrade : [8, 9, 10, 14, 15, 16, 17, 18];
+  const gradeDoDia = faixas.map((h) => {
+    const hora = `${String(h).padStart(2, "0")}:00`;
     const evento = horaOcupada.get(hora);
-    return {
-      hora,
-      evento,
-      livre: !evento && horasLivresDoDia.has(hora),
-    };
+    return { hora, evento, livre: !evento && horasLivresDoDia.has(hora) };
   });
   const domingoSel = new Date(ano, mes, diaSel).getDay() === 0;
 
@@ -236,7 +238,7 @@ export default function CalendarioGrade({ eventos, livres = [], googleConectado 
           </div>
 
           <p className="mt-4 flex items-center gap-2 text-xs text-slate-500">
-            <Clock size={12} /> Atendimento: segunda a sábado, 08h às 21h — domingos bloqueados
+            <Clock size={12} /> Reuniões de segunda a sábado, das 8h às 11h e das 14h às 19h
           </p>
         </div>
 
@@ -273,7 +275,8 @@ export default function CalendarioGrade({ eventos, livres = [], googleConectado 
                 </div>
               ))}
               <p className="mt-2 text-xs text-slate-600">
-                &quot;Indisponível&quot; = horário já passou ou está ocupado no seu Google Agenda.
+                &quot;Indisponível&quot; = já passou ou está ocupado no seu Google Agenda. Fora
+                dessas faixas a Lara não oferece reunião.
               </p>
             </div>
           )}
