@@ -9,7 +9,6 @@ import {
   CalendarDays,
   MessageCircle,
   Wallet,
-  Sparkles,
   Plus,
   LogOut,
   CalendarCheck,
@@ -39,8 +38,17 @@ export default function Sidebar({ cliente, saldo = 0 }) {
     <aside className="fixed inset-y-0 left-0 z-40 flex w-16 flex-col border-r border-white/5 bg-navy-900/90 backdrop-blur-xl lg:w-64">
       {/* Logo */}
       <Link href="/" className="flex items-center gap-3 px-4 py-6 lg:px-6">
+        {/* Logo: onda sonora — a voz da IA */}
         <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-brand-blue to-brand-violet shadow-glow">
-          <Sparkles size={18} className="text-white" />
+          <svg width="20" height="20" viewBox="0 0 56 56" aria-hidden="true">
+            <g stroke="#fff" strokeWidth="3.5" strokeLinecap="round">
+              <line x1="15" y1="28" x2="15" y2="28" />
+              <line x1="22" y1="21" x2="22" y2="35" />
+              <line x1="29" y1="14" x2="29" y2="42" />
+              <line x1="36" y1="19" x2="36" y2="37" />
+              <line x1="43" y1="25" x2="43" y2="31" />
+            </g>
+          </svg>
         </span>
         <span className="hidden lg:block">
           <span className="block font-display text-lg font-semibold leading-none tracking-tight text-white">
@@ -52,8 +60,10 @@ export default function Sidebar({ cliente, saldo = 0 }) {
         </span>
       </Link>
 
+      <div className="mx-4 border-t border-white/5 lg:mx-6" />
+
       {/* Navegação */}
-      <nav className="flex-1 space-y-1 px-2 lg:px-3">
+      <nav className="flex-1 space-y-1 px-2 pt-4 lg:px-3">
         {itens.map(({ rotulo, href, icone: Icone }) => {
           const ativo = pathname === href;
           return (
@@ -100,7 +110,10 @@ export default function Sidebar({ cliente, saldo = 0 }) {
             R$ {Number(saldo).toFixed(2).replace(".", ",")}
           </p>
           <p className="mt-0.5 text-xs text-slate-500">≈ {minutos} minutos de ligação</p>
-          <Link href="/carteira" className="btn-primario mt-3 w-full text-xs">
+          <Link
+            href="/carteira"
+            className="mt-3 flex w-full items-center justify-center gap-1.5 rounded-xl border border-brand-blue/40 px-3 py-2 text-xs font-semibold text-brand-blue transition hover:border-brand-blue hover:bg-brand-blue/10"
+          >
             <Plus size={14} /> Adicionar saldo
           </Link>
         </div>

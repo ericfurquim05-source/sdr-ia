@@ -75,7 +75,7 @@ function linkGoogle(r) {
   return `https://calendar.google.com/calendar/render?${params}`;
 }
 
-export default function ReunioesLista({ reunioes }) {
+export default function ReunioesLista({ reunioes = [] }) {
   const [aberta, setAberta] = useState(reunioes[0]?.id ?? null);
   const [filtro, setFiltro] = useState("Próximas");
 

@@ -45,19 +45,23 @@ const PRESETS_HORA = [
 ];
 
 export default function FiltroPeriodo({ de, ate, horas = null, base = "/", extra = "" }) {
+  // Blindagem: se a página não mandar as datas, usa hoje em vez de quebrar
+  const hojeISO = new Date().toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" });
+  const deSeguro = typeof de === "string" && de.includes("-") ? de : hojeISO;
+  const ateSeguro = typeof ate === "string" && ate.includes("-") ? ate : hojeISO;
   const router = useRouter();
   const [aberto, setAberto] = useState(false);
-  const [deCustom, setDeCustom] = useState(de);
-  const [ateCustom, setAteCustom] = useState(ate);
+  const [deCustom, setDeCustom] = useState("");
+  const [ateCustom, setAteCustom] = useState("");
 
   const presets = useMemo(calcularPresets, []);
   const ativoHora = PRESETS_HORA.find((p) => p.horas === horas);
-  const ativo = !horas && presets.find((p) => p.de === de && p.ate === ate);
+  const ativo = !horas && presets.find((p) => p.de === deSeguro && p.ate === ateSeguro);
   const rotuloBotao = ativoHora
     ? ativoHora.rotulo
     : ativo
       ? ativo.rotulo
-      : `${de.split("-").reverse().join("/")} — ${ate.split("-").reverse().join("/")}`;
+      : `${deSeguro.split("-").reverse().join("/")} — ${ateSeguro.split("-").reverse().join("/")}`;
 
   const aplicar = (novoDe, novoAte) => {
     setAberto(false);
@@ -127,14 +131,14 @@ export default function FiltroPeriodo({ de, ate, horas = null, base = "/", extra
               <div className="flex items-center gap-2">
                 <input
                   type="date"
-                  value={deCustom}
+                  value={deCustom || deSeguro}
                   onChange={(e) => setDeCustom(e.target.value)}
                   className="campo !px-2 !py-1.5 text-xs"
                 />
                 <span className="text-slate-600">—</span>
                 <input
                   type="date"
-                  value={ateCustom}
+                  value={ateCustom || ateSeguro}
                   onChange={(e) => setAteCustom(e.target.value)}
                   className="campo !px-2 !py-1.5 text-xs"
                 />

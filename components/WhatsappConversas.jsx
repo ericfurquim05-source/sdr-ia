@@ -86,7 +86,7 @@ function GuiaConexao() {
   );
 }
 
-export default function WhatsappConversas({ conversas, conectado, iaLigada }) {
+export default function WhatsappConversas({ conversas = [], conectado = false, iaLigada = false }) {
   const router = useRouter();
   const [ativo, setAtivo] = useState(null);
   const [texto, setTexto] = useState("");

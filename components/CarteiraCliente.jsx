@@ -25,7 +25,7 @@ const PACOTES = [
   { valor: 5000, selo: "+7% de bônus" },
 ];
 
-export default function CarteiraCliente({ saldo, precoMinuto, consumoMes, extrato }) {
+export default function CarteiraCliente({ saldo = 0, precoMinuto = 1.5, consumoMes = 0, extrato = [] }) {
   const router = useRouter();
   const [personalizado, setPersonalizado] = useState("");
   const [enviando, setEnviando] = useState(null); // valor em processamento

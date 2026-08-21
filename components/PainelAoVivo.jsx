@@ -31,7 +31,7 @@ function MiniPlayer({ url }) {
   return (
     <button
       onClick={alternar}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-brand-blue to-brand-violet text-white transition hover:opacity-90"
+      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-blue/30 bg-brand-blue/10 text-brand-blue transition hover:border-brand-blue hover:bg-brand-blue/20"
       title="Ouvir a ligação"
     >
       {tocando ? <Pause size={13} /> : <Play size={13} className="ml-0.5" />}
@@ -74,7 +74,7 @@ export default function PainelAoVivo({ inicial }) {
   return (
     <div className="card mb-6 overflow-hidden">
       {/* Cabeçalho ao vivo */}
-      <div className="flex items-center gap-3 border-b border-white/5 px-4 py-3">
+      <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
         <span className="relative flex h-2.5 w-2.5">
           {emLigacao > 0 && (
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -114,7 +114,7 @@ export default function PainelAoVivo({ inicial }) {
         )}
 
         {ultimas.map((l) => (
-          <div key={l.id} className="flex items-center gap-3 px-4 py-2.5">
+          <div key={l.id} className="flex items-center gap-3.5 px-5 py-3.5">
             {l.recording_url ? (
               <MiniPlayer url={l.recording_url} />
             ) : (
@@ -124,12 +124,12 @@ export default function PainelAoVivo({ inicial }) {
             )}
 
             <div className="min-w-0 flex-1">
-              <p className="truncate text-sm text-white">
+              <p className="truncate text-sm font-medium text-white">
                 {l.nome || fmtTel(l.telefone)}
                 {l.nome && <span className="text-slate-500"> · {fmtTel(l.telefone)}</span>}
               </p>
-              <p className="text-xs text-slate-500">
-                {fmtHora(l.criado_em)} · {fmtDuracao(l.duracao_ms)}
+              <p className="mt-0.5 text-xs text-slate-500">
+                {fmtHora(l.criado_em)} · <b className="font-semibold text-slate-400">{fmtDuracao(l.duracao_ms)}</b>
               </p>
             </div>
 

@@ -3,7 +3,7 @@ import AutoRetomada from "@/components/AutoRetomada";
 import { clienteLogado } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
 import {
-  kpisDoPeriodo, seriePorDia, desfechosDoPeriodo, hojeSP, lerJanela,
+  kpisDoPeriodo, desfechosDoPeriodo, hojeSP, lerJanela,
 } from "@/lib/estatisticas";
 
 export const dynamic = "force-dynamic";
@@ -35,7 +35,6 @@ export default async function Dashboard({ searchParams }) {
       reunioes: 0, conversao: 0, custoPorReuniao: null, whatsapps: 0,
       fila: { pendentes: 0, em_ligacao: 0, concluidas: 0, esgotados: 0 },
     },
-    serie: [],
     desfechos: [],
   };
 
@@ -44,12 +43,11 @@ export default async function Dashboard({ searchParams }) {
   try {
     const cliente = await clienteLogado();
     if (cliente) {
-      const [kpis, serie, desfechos] = await Promise.all([
+      const [kpis, desfechos] = await Promise.all([
         kpisDoPeriodo(cliente.id, de, ate, horas),
-        seriePorDia(cliente.id, de, ate, horas),
         desfechosDoPeriodo(cliente.id, de, ate, horas),
       ]);
-      dados = { kpis, serie, desfechos };
+      dados = { kpis, desfechos };
       aoVivo = {
         emLigacao: kpis.fila.em_ligacao,
         ultimas: (await ultimasLigacoes(cliente.id)).map((l) => ({

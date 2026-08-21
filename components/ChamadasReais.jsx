@@ -74,7 +74,14 @@ const OPCOES_ORDEM = [
   { id: "antigas", rotulo: "Mais antigas" },
 ];
 
-export default function ChamadasReais({ ligacoes, de, ate, horas, ordem, totais }) {
+export default function ChamadasReais({
+  ligacoes = [],
+  de,
+  ate,
+  horas = null,
+  ordem = "duracao_desc",
+  totais = { total: 0, atendidas: 0, msTotal: 0 },
+}) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState("Todas");
