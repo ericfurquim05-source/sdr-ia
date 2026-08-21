@@ -110,7 +110,7 @@ function SincronizarGoogle({ conectado }) {
  * Dots violeta = reunião marcada pela IA · azul = manual.
  * Fins de semana aparecem bloqueados (fora do horário de atendimento).
  */
-export default function CalendarioGrade({ eventos, googleConectado = false }) {
+export default function CalendarioGrade({ eventos, livres = [], googleConectado = false }) {
   const hoje = new Date();
   const [mesBase, setMesBase] = useState(new Date(hoje.getFullYear(), hoje.getMonth(), 1));
   const [diaSel, setDiaSel] = useState(hoje.getDate());
@@ -124,9 +124,13 @@ export default function CalendarioGrade({ eventos, googleConectado = false }) {
   // Agrupa os eventos por dia do mês exibido
   const porDia = new Map();
   for (const e of eventos) {
-    const d = new Date(e.inicio);
-    if (d.getFullYear() === ano && d.getMonth() === mes) {
-      const dia = d.getDate();
+    // Data em Brasília (aaaa-mm-dd), independente do fuso do navegador
+    const [aa, mm, dd] = new Date(e.inicio)
+      .toLocaleDateString("en-CA", { timeZone: "America/Sao_Paulo" })
+      .split("-")
+      .map(Number);
+    if (aa === ano && mm - 1 === mes) {
+      const dia = dd;
       if (!porDia.has(dia)) porDia.set(dia, []);
       porDia.get(dia).push(e);
     }
@@ -135,13 +139,43 @@ export default function CalendarioGrade({ eventos, googleConectado = false }) {
   const celulas = [...Array(primeiroDia).fill(null), ...Array.from({ length: totalDias }, (_, i) => i + 1)];
   const evDia = (porDia.get(diaSel) ?? []).sort((a, b) => a.inicio.localeCompare(b.inicio));
 
+  // Grade de horários do dia selecionado: 8h às 20h (última reunião às 20h)
+  const dataSel = `${ano}-${String(mes + 1).padStart(2, "0")}-${String(diaSel).padStart(2, "0")}`;
+  const horasLivresDoDia = new Set(
+    livres.filter((l) => l.data === dataSel).map((l) => l.hora)
+  );
+  const horaOcupada = new Map(
+    evDia.map((e) => [
+      new Date(e.inicio).toLocaleTimeString("pt-BR", {
+        timeZone: "America/Sao_Paulo",
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      e,
+    ])
+  );
+  const gradeDoDia = Array.from({ length: 13 }, (_, i) => {
+    const hora = `${String(i + 8).padStart(2, "0")}:00`;
+    const evento = horaOcupada.get(hora);
+    return {
+      hora,
+      evento,
+      livre: !evento && horasLivresDoDia.has(hora),
+    };
+  });
+  const domingoSel = new Date(ano, mes, diaSel).getDay() === 0;
+
   const mudarMes = (delta) => {
     setMesBase(new Date(ano, mes + delta, 1));
     setDiaSel(1);
   };
 
   const fmtHora = (iso) =>
-    new Date(iso).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+    new Date(iso).toLocaleTimeString("pt-BR", {
+      timeZone: "America/Sao_Paulo",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   return (
     <>
@@ -207,8 +241,44 @@ export default function CalendarioGrade({ eventos, googleConectado = false }) {
         </div>
 
         <div className="card p-5">
-          <p className="mb-4 font-semibold text-white">Dia {diaSel}</p>
-          {evDia.length === 0 && (
+          <p className="mb-1 font-semibold text-white">Dia {diaSel}</p>
+          <p className="mb-4 text-xs text-slate-500">
+            {domingoSel
+              ? "Domingo — sem atendimento"
+              : `${gradeDoDia.filter((g) => g.livre).length} horários livres · ${evDia.length} ocupados`}
+          </p>
+
+          {/* Grade hora a hora: o que a Lara enxerga ao oferecer horário */}
+          {!domingoSel && (
+            <div className="mb-4 flex flex-col gap-1">
+              {gradeDoDia.map((g) => (
+                <div
+                  key={g.hora}
+                  className={`flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-xs ${
+                    g.evento
+                      ? "border border-brand-violet/30 bg-brand-violet/10"
+                      : g.livre
+                        ? "border border-emerald-500/20 bg-emerald-500/5"
+                        : "border border-white/5 bg-navy-900"
+                  }`}
+                >
+                  <span className="w-11 shrink-0 font-mono text-slate-400">{g.hora}</span>
+                  {g.evento ? (
+                    <span className="truncate text-slate-200">{g.evento.titulo}</span>
+                  ) : g.livre ? (
+                    <span className="text-emerald-400">livre</span>
+                  ) : (
+                    <span className="text-slate-600">indisponível</span>
+                  )}
+                </div>
+              ))}
+              <p className="mt-2 text-xs text-slate-600">
+                &quot;Indisponível&quot; = horário já passou ou está ocupado no seu Google Agenda.
+              </p>
+            </div>
+          )}
+
+          {evDia.length === 0 && !domingoSel && (
             <p className="text-sm text-slate-500">Nenhum compromisso neste dia.</p>
           )}
           <div className="flex flex-col gap-3">

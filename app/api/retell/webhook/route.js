@@ -123,14 +123,30 @@ async function tratarEvento(request) {
       `;
 
       // ---- 2c. FOLLOW-UP AUTOMÁTICO NO WHATSAPP ----
-      // Não conseguiu contato por telefone após N tentativas?
-      // Manda o template aprovado uma única vez por contato.
-      const disparoApos = Number(process.env.WHATSAPP_APOS_TENTATIVAS || 3);
+      // Só manda para quem TEVE CONTATO REAL. Nunca dispara em massa
+      // para quem não atendeu: além de não ter contexto, queima o
+      // número na Meta (limite diário e queda de qualidade).
+      //
+      // Dois casos habilitados:
+      //  1. FALOU e não fechou: conversou mais de 1 minuto (padrão), mas
+      //     a ligação terminou sem reunião marcada. Abaixo disso quase
+      //     sempre foi recusa rápida, não conversa.
+      //  2. ÁUDIO RUIM: atendeu, mas a chamada caiu cedo ou a pessoa
+      //     não conseguiu ouvir. Não é rejeição, é falha técnica.
+      const segundosMinimos = Number(process.env.WHATSAPP_APOS_SEGUNDOS || 60);
+      const textoConversa = `${chamada.transcript ?? ""}`.toLowerCase();
+      const audioRuim =
+        /não consigo (te )?entender|nao consigo (te )?entender|não estou ouvindo|nao estou ouvindo|está ruim|ta ruim|abafado|cortando|repet/.test(
+          textoConversa
+        ) || /error_no_audio_received|error_asr/.test(motivo);
+
+      const falouDeVerdade = atendeu && segundos >= segundosMinimos;
+      const mereceFollowUp = falouDeVerdade || (atendeu && audioRuim);
+
       if (
-        resultadoFalha &&
+        mereceFollowUp &&
         !contato.whatsapp_enviado &&
-        whatsappConfigurado() &&
-        (resultadoFalha.tentativas >= disparoApos || resultadoFalha.novoStatus === "ESGOTADO")
+        whatsappConfigurado()
       ) {
         const { rows: cli } = await sql`
           SELECT preco_conversa FROM clientes WHERE id = ${clienteId} LIMIT 1;
@@ -141,6 +157,14 @@ async function tratarEvento(request) {
           telefone: contato.telefone,
           nome: contato.nome,
         });
+        // Registra o motivo do disparo, útil para acompanhar o que converte
+        if (envio.ok) {
+          await sql`
+            INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto)
+            VALUES (${clienteId}, ${contato.telefone}, 'out',
+              ${audioRuim ? "[follow-up: ligação com áudio ruim]" : "[follow-up: conversou e não fechou]"});
+          `;
+        }
         if (envio.ok) {
           await sql`UPDATE contatos SET whatsapp_enviado = TRUE WHERE id = ${contato.id};`;
         }

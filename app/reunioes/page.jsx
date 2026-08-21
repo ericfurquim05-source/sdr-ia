@@ -23,15 +23,15 @@ export default async function Reunioes() {
           e.titulo,
           e.origem,
           e.telefone,
-          e.inicio AT TIME ZONE 'America/Sao_Paulo' AS inicio_local,
-          e.criado_em AT TIME ZONE 'America/Sao_Paulo' AS criado_local,
+          e.inicio,
+          e.criado_em,
           l.id            AS ligacao_id,
           l.nome          AS lead_nome,
           l.duracao_ms::int AS duracao_ms,
           l.recording_url,
           l.transcript,
           l.resumo,
-          l.criado_em AT TIME ZONE 'America/Sao_Paulo' AS ligacao_em
+          l.criado_em AS ligacao_em
         FROM eventos e
         LEFT JOIN LATERAL (
           SELECT * FROM ligacoes lg
@@ -50,8 +50,8 @@ export default async function Reunioes() {
         titulo: r.titulo,
         origem: r.origem,
         telefone: r.telefone,
-        inicio: new Date(r.inicio_local).toISOString(),
-        criadoEm: new Date(r.criado_local).toISOString(),
+        inicio: r.inicio.toISOString(),
+        criadoEm: r.criado_em.toISOString(),
         ligacao: r.ligacao_id
           ? {
               nome: r.lead_nome,
@@ -59,7 +59,7 @@ export default async function Reunioes() {
               recordingUrl: r.recording_url,
               transcript: r.transcript,
               resumo: r.resumo,
-              quando: new Date(r.ligacao_em).toISOString(),
+              quando: r.ligacao_em.toISOString(),
             }
           : null,
       }));
