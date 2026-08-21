@@ -1,6 +1,7 @@
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
+import { headers } from "next/headers";
 import { clienteLogado, ehAdmin } from "@/lib/auth";
 import { saldoAtual } from "@/lib/saldo";
 
@@ -25,10 +26,15 @@ export default async function RootLayout({ children }) {
     cliente = null;
   }
 
+  // O console (/admin) tem cabeçalho próprio: não recebe a barra
+  // lateral nem o container do cliente.
+  const caminho = headers().get("x-pathname") || headers().get("x-invoke-path") || "";
+  const ehConsole = caminho.startsWith("/admin");
+
   return (
     <html lang="pt-BR" className={`${inter.variable} ${grotesk.variable}`}>
       <body className="font-sans">
-        {cliente ? (
+        {cliente && !ehConsole ? (
           <>
             <Sidebar cliente={cliente} saldo={saldo} admin={ehAdmin(cliente)} />
             <main className="pl-16 lg:pl-64">

@@ -158,6 +158,14 @@ export default function ChamadasReais({
         subtitulo="Histórico real das ligações — gravação, resumo e transcrição."
       >
         <FiltroPeriodo de={de} ate={ate} horas={horas} base="/sdr-ia" extra={`&ordem=${ordem}`} />
+        <a
+          href="/api/relatorio/audio?dias=7"
+          className="btn-fantasma text-sm"
+          download
+          title="CSV com as ligações que tiveram falha de áudio, para enviar à operadora"
+        >
+          Relatório de áudio
+        </a>
         <button onClick={importarHistorico} disabled={importando} className="btn-fantasma text-sm">
           {importando ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
           Importar da Retell

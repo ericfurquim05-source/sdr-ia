@@ -33,7 +33,11 @@ export function middleware(request) {
     return NextResponse.redirect(destino);
   }
 
-  return NextResponse.next();
+  // Informa o caminho ao layout: o console usa cabeçalho próprio,
+  // sem a barra lateral do cliente.
+  const cabecalhos = new Headers(request.headers);
+  cabecalhos.set("x-pathname", pathname);
+  return NextResponse.next({ request: { headers: cabecalhos } });
 }
 
 export const config = {
