@@ -66,8 +66,6 @@ export default function DashboardGraficos({
         </a>
       </PageHeader>
 
-      <PainelAoVivo inicial={aoVivo} />
-
       {/* TRÍADE DE PERFORMANCE — o que o olho precisa capturar primeiro */}
       <div className="mb-4 grid gap-4 sm:grid-cols-3">
         <div className="card bg-navy-850 p-6">
@@ -130,6 +128,9 @@ export default function DashboardGraficos({
           <p className="text-xs text-slate-500">{kpis.whatsapps} WhatsApps enviados</p>
         </div>
       </div>
+
+      {/* Operação ao vivo — recolhido por padrão, abre quando o usuário quiser */}
+      <PainelAoVivo inicial={aoVivo} />
 
       {/* FILA AGORA — negrito só nos números, para leitura instantânea */}
       <div className="card mb-4 flex flex-wrap items-center gap-x-7 gap-y-2 p-5 text-sm">

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Play, Pause, Radio, PhoneCall } from "lucide-react";
+import { Play, Pause, Radio, PhoneCall, ChevronDown } from "lucide-react";
 
 /*
  * PAINEL AO VIVO — o bloco mais importante para a demonstração.
@@ -41,6 +41,29 @@ function MiniPlayer({ url }) {
 
 export default function PainelAoVivo({ inicial }) {
   const [dados, setDados] = useState(inicial);
+  // Começa recolhido: o topo do Dashboard pertence às métricas.
+  // Quem quiser acompanhar a operação abre e o estado fica salvo.
+  const [aberto, setAberto] = useState(false);
+
+  useEffect(() => {
+    try {
+      const salvo = window.sessionStorage.getItem("aovivo_aberto");
+      if (salvo === "1") setAberto(true);
+    } catch {
+      /* ignora se o navegador bloquear */
+    }
+  }, []);
+
+  const alternarPainel = () => {
+    setAberto((v) => {
+      try {
+        window.sessionStorage.setItem("aovivo_aberto", v ? "0" : "1");
+      } catch {
+        /* ignora */
+      }
+      return !v;
+    });
+  };
 
   // Atualiza sozinho: os números sobem enquanto o cliente olha
   useEffect(() => {
@@ -72,9 +95,14 @@ export default function PainelAoVivo({ inicial }) {
     String(t).length === 11 ? `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}` : t;
 
   return (
-    <div className="card mb-6 overflow-hidden">
-      {/* Cabeçalho ao vivo */}
-      <div className="flex items-center gap-3 border-b border-white/5 px-5 py-4">
+    <div className="card mb-4 overflow-hidden">
+      {/* Cabeçalho: clicável para abrir e fechar */}
+      <button
+        onClick={alternarPainel}
+        className={`flex w-full items-center gap-3 px-5 py-3 text-left transition hover:bg-white/[0.02] ${
+          aberto ? "border-b border-white/5" : ""
+        }`}
+      >
         <span className="relative flex h-2.5 w-2.5">
           {emLigacao > 0 && (
             <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -86,22 +114,28 @@ export default function PainelAoVivo({ inicial }) {
           />
         </span>
 
-        <p className="text-sm font-semibold text-white">
+        <p className="text-sm font-medium text-slate-300">
           {emLigacao > 0 ? (
             <>
-              {emLigacao} {emLigacao === 1 ? "ligação acontecendo" : "ligações acontecendo"} agora
+              <b className="font-bold text-white">{emLigacao}</b>{" "}
+              {emLigacao === 1 ? "ligação acontecendo" : "ligações acontecendo"} agora
             </>
           ) : (
             "Nenhuma ligação em curso"
           )}
         </p>
 
-        <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-500">
+        <span className="ml-auto flex items-center gap-1.5 text-xs text-slate-600">
           <Radio size={12} /> ao vivo
         </span>
-      </div>
+        <ChevronDown
+          size={16}
+          className={`text-slate-500 transition ${aberto ? "rotate-180" : ""}`}
+        />
+      </button>
 
       {/* Últimas ligações com play imediato */}
+      {aberto && (
       <div className="divide-y divide-white/5">
         {ultimas.length === 0 && (
           <div className="flex flex-col items-center gap-2 px-4 py-8 text-center">
@@ -145,6 +179,7 @@ export default function PainelAoVivo({ inicial }) {
           </div>
         ))}
       </div>
+      )}
     </div>
   );
 }
