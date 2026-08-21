@@ -2,42 +2,16 @@
 
 import { useState } from "react";
 import {
-  Sparkles, CalendarCheck, Phone, Play, Pause, ExternalLink, Clock, ChevronDown,
+  Sparkles, CalendarCheck, Phone, ExternalLink, Clock, ChevronDown,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
+import PlayerAudio from "@/components/PlayerAudio";
 import { formatarExibicao } from "@/lib/planilha";
 
 /*
  * Reuniões agendadas. Cada card abre a conversa que gerou a
  * reunião: gravação, resumo da IA e transcrição completa.
  */
-
-function Player({ url }) {
-  const [audio] = useState(() => (typeof Audio !== "undefined" ? new Audio(url) : null));
-  const [tocando, setTocando] = useState(false);
-
-  const alternar = () => {
-    if (!audio) return;
-    if (tocando) {
-      audio.pause();
-      setTocando(false);
-    } else {
-      audio.play();
-      setTocando(true);
-      audio.onended = () => setTocando(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={alternar}
-      className="flex items-center gap-2 rounded-xl border border-white/10 bg-navy-900 px-3 py-2 text-sm text-slate-300 transition hover:border-brand-blue/50"
-    >
-      {tocando ? <Pause size={14} /> : <Play size={14} />}
-      {tocando ? "Pausar gravação" : "Ouvir a ligação"}
-    </button>
-  );
-}
 
 function Transcricao({ texto }) {
   const linhas = String(texto).split("\n").map((l) => l.trim()).filter(Boolean);
@@ -204,7 +178,7 @@ export default function ReunioesLista({ reunioes = [] }) {
                       · durou {fmtDuracao(r.ligacao.duracaoMs)}
                     </p>
 
-                    {r.ligacao.recordingUrl && <Player url={r.ligacao.recordingUrl} />}
+                    {r.ligacao.recordingUrl && <PlayerAudio url={r.ligacao.recordingUrl} />}
 
                     {r.ligacao.resumo && (
                       <div className="rounded-xl border border-brand-violet/30 bg-brand-violet/10 p-3">

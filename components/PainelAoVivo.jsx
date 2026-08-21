@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Play, Pause, Radio, PhoneCall, ChevronDown } from "lucide-react";
+import { Radio, PhoneCall, ChevronDown } from "lucide-react";
+import PlayerAudio from "@/components/PlayerAudio";
 
 /*
  * PAINEL AO VIVO — o bloco mais importante para a demonstração.
@@ -9,35 +10,6 @@ import { Play, Pause, Radio, PhoneCall, ChevronDown } from "lucide-react";
  * encerradas, com play imediato. Atualiza sozinho a cada 15s,
  * então os números sobem na frente do cliente.
  */
-
-function MiniPlayer({ url }) {
-  const [audio] = useState(() => (typeof Audio !== "undefined" ? new Audio(url) : null));
-  const [tocando, setTocando] = useState(false);
-
-  useEffect(() => () => audio?.pause(), [audio]);
-
-  const alternar = () => {
-    if (!audio) return;
-    if (tocando) {
-      audio.pause();
-      setTocando(false);
-    } else {
-      audio.play();
-      setTocando(true);
-      audio.onended = () => setTocando(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={alternar}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-brand-blue/30 bg-brand-blue/10 text-brand-blue transition hover:border-brand-blue hover:bg-brand-blue/20"
-      title="Ouvir a ligação"
-    >
-      {tocando ? <Pause size={13} /> : <Play size={13} className="ml-0.5" />}
-    </button>
-  );
-}
 
 export default function PainelAoVivo({ inicial }) {
   const [dados, setDados] = useState(inicial);
@@ -150,7 +122,7 @@ export default function PainelAoVivo({ inicial }) {
         {ultimas.map((l) => (
           <div key={l.id} className="flex items-center gap-3.5 px-5 py-3.5">
             {l.recording_url ? (
-              <MiniPlayer url={l.recording_url} />
+              <PlayerAudio url={l.recording_url} compacto />
             ) : (
               <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 text-slate-600">
                 <PhoneCall size={13} />

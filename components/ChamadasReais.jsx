@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Search, Sparkles, Play, Pause, Clock, ArrowUpDown, Timer, DownloadCloud, Loader2, ArrowUp, ArrowDown, Flame } from "lucide-react";
+import { Search, Sparkles, Clock, ArrowUpDown, Timer, DownloadCloud, Loader2, ArrowUp, ArrowDown, Flame } from "lucide-react";
 import { PageHeader, StatusBadge } from "@/components/Interface";
+import PlayerAudio from "@/components/PlayerAudio";
 import FiltroPeriodo from "@/components/FiltroPeriodo";
 import { detectarSinais, ehOportunidade, nivelPrioridade } from "@/lib/sinais";
 
@@ -11,33 +12,6 @@ import { detectarSinais, ehOportunidade, nivelPrioridade } from "@/lib/sinais";
  * Lista de chamadas REAIS (tabela ligacoes): player com a gravação
  * da Retell, resumo da IA e transcrição completa.
  */
-
-function PlayerReal({ url }) {
-  const [audio] = useState(() => (typeof Audio !== "undefined" ? new Audio(url) : null));
-  const [tocando, setTocando] = useState(false);
-
-  const alternar = () => {
-    if (!audio) return;
-    if (tocando) {
-      audio.pause();
-      setTocando(false);
-    } else {
-      audio.play();
-      setTocando(true);
-      audio.onended = () => setTocando(false);
-    }
-  };
-
-  return (
-    <button
-      onClick={alternar}
-      className="flex items-center gap-2 rounded-xl border border-white/10 bg-navy-900 px-3 py-2 text-sm text-slate-300 transition hover:border-brand-blue/50"
-    >
-      {tocando ? <Pause size={14} /> : <Play size={14} />}
-      {tocando ? "Pausar gravação" : "Ouvir gravação"}
-    </button>
-  );
-}
 
 // A Retell manda a transcrição como texto "Agent: ...\nUser: ..."
 function Transcricao({ texto }) {
@@ -341,7 +315,7 @@ export default function ChamadasReais({
             {aberto === l.id && (
               <div className="flex flex-col gap-3 px-4 pb-4">
                 {l.recording_url ? (
-                  <PlayerReal url={l.recording_url} />
+                  <PlayerAudio url={l.recording_url} />
                 ) : (
                   <p className="text-xs italic text-slate-500">
                     Sem gravação disponível para esta chamada.
