@@ -2,7 +2,7 @@
 
 import {
   Phone, CheckCircle2, PhoneOff, Wallet, Clock, ListChecks,
-  CalendarCheck, Percent, Target, MessageCircle,
+  CalendarCheck, Percent, Target, MessageCircle, Sparkles, UserRound,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
@@ -15,6 +15,10 @@ import PainelAoVivo from "@/components/PainelAoVivo";
  * Parte visual do Dashboard. Recebe os números REAIS por props,
  * já filtrados pelo período escolhido no FiltroPeriodo.
  */
+// Referências do comparativo com SDR humano
+const LIGACOES_HUMANO = 60;     // ligações por dia de um SDR dedicado
+const CUSTO_DIA_HUMANO = 150;   // salário + encargos, por dia útil
+
 export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, horas, aoVivo }) {
   const brl = (v) =>
     Number(v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -104,28 +108,52 @@ export default function DashboardGraficos({ kpis, serie, desfechos, de, ate, hor
         })}
       </div>
 
-      {/* Quanto isso custaria com um SDR humano */}
+      {/* Comparativo com SDR humano — o card que explica o valor */}
       {kpis.total > 0 && (
-        <div className="card mb-6 flex flex-wrap items-center gap-x-8 gap-y-3 border-emerald-500/20 bg-emerald-500/5 p-4">
-          <div>
-            <p className="font-display text-2xl font-bold text-white">{kpis.total}</p>
-            <p className="text-xs text-slate-400">ligações feitas pela IA</p>
+        <div className="card mb-6 overflow-hidden border-emerald-500/20">
+          <div className="grid gap-px bg-white/5 sm:grid-cols-[1fr_auto_1fr]">
+            {/* Lado da IA */}
+            <div className="bg-navy-850 p-5">
+              <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-emerald-400">
+                <Sparkles size={12} /> Com a IA
+              </p>
+              <p className="font-display text-4xl font-bold text-white">{kpis.total}</p>
+              <p className="mt-1 text-sm text-slate-400">
+                ligações em {diasIA === 1 ? "1 dia" : `${diasIA} dias`}
+              </p>
+              <p className="mt-3 font-display text-2xl font-semibold text-emerald-300">
+                {brl(kpis.custo)}
+              </p>
+              <p className="text-xs text-slate-500">custo total, só minutos falados</p>
+            </div>
+
+            {/* Divisor */}
+            <div className="flex items-center justify-center bg-navy-850 px-4 py-2">
+              <span className="font-display text-sm font-bold text-slate-600">VS</span>
+            </div>
+
+            {/* Lado do SDR humano */}
+            <div className="bg-navy-900 p-5">
+              <p className="mb-3 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <UserRound size={12} /> Com um SDR contratado
+              </p>
+              <p className="font-display text-4xl font-bold text-slate-400">{kpis.total}</p>
+              <p className="mt-1 text-sm text-slate-500">
+                ligações em {diasHumano === 1 ? "1 dia" : `${diasHumano} dias`} ({LIGACOES_HUMANO}/dia)
+              </p>
+              <p className="mt-3 font-display text-2xl font-semibold text-slate-400">
+                {brl(custoHumano)}
+              </p>
+              <p className="text-xs text-slate-600">proporcional a salário e encargos</p>
+            </div>
           </div>
-          <div>
-            <p className="font-display text-2xl font-bold text-white">{brl(kpis.custo)}</p>
-            <p className="text-xs text-slate-400">foi o que custou</p>
-          </div>
-          <div className="hidden text-slate-700 sm:block">|</div>
-          <div>
-            <p className="font-display text-2xl font-bold text-slate-400">
-              {Math.ceil(kpis.total / 40)} {Math.ceil(kpis.total / 40) === 1 ? "dia" : "dias"}
+
+          {economia > 0 && (
+            <p className="bg-emerald-500/10 px-5 py-3 text-center text-sm text-emerald-300">
+              Economia de <b>{brl(economia)}</b> no período — e a IA não tira férias, não
+              falta e trabalha em paralelo.
             </p>
-            <p className="text-xs text-slate-500">um SDR humano levaria (40 ligações/dia)</p>
-          </div>
-          <p className="ml-auto max-w-xs text-xs leading-relaxed text-emerald-300/80">
-            A IA trabalha em paralelo, sem pausa e sem salário fixo. Você paga só pelos
-            minutos falados.
-          </p>
+          )}
         </div>
       )}
 
