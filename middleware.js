@@ -17,7 +17,7 @@ export function middleware(request) {
     pathname.startsWith("/api/auth") ||
     pathname.startsWith("/api/retell") ||          // webhook da Retell vem de fora
     pathname.startsWith("/api/campanhas/processar") || // protegida por CRON_SECRET na própria rota
-    pathname.startsWith("/api/whatsapp/webhook") ||     // webhook da Meta vem de fora
+    pathname.startsWith("/api/whatsapp") ||             // webhooks da Meta e da Z-API vêm de fora
     pathname.startsWith("/api/agenda");                  // custom functions da Retell
 
   if (!temSessao && !rotaPublica) {

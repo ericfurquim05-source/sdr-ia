@@ -13,10 +13,12 @@ import {
   LogOut,
   CalendarCheck,
   ShieldCheck,
+  Hand,
 } from "lucide-react";
 
 const itens = [
   { rotulo: "Dashboard", href: "/", icone: LayoutDashboard },
+  { rotulo: "Contatos", href: "/leads", icone: Hand },
   { rotulo: "Campanhas", href: "/campanhas", icone: Rocket },
   { rotulo: "SDR IA", href: "/sdr-ia", icone: Bot },
   { rotulo: "Calendário", href: "/calendario", icone: CalendarDays },
