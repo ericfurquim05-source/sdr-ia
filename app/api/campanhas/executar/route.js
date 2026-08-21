@@ -43,6 +43,19 @@ async function executarCampanha(request) {
     );
   }
 
+  // Teto por envio: acima disso o navegador e a rota sofrem.
+  // Listas maiores devem ser divididas em partes.
+  const LIMITE_POR_ENVIO = 5000;
+  if (contatos.length > LIMITE_POR_ENVIO) {
+    return NextResponse.json(
+      {
+        erro: true,
+        mensagem: `Lista muito grande (${contatos.length} contatos). Divida em partes de até ${LIMITE_POR_ENVIO} e suba uma por vez.`,
+      },
+      { status: 413 }
+    );
+  }
+
   // ---- Modo demonstração ----
   if (!process.env.RETELL_API_KEY) {
     return NextResponse.json({
@@ -75,13 +88,23 @@ async function executarCampanha(request) {
 
   await garantirTabelas();
 
-  // ---- Importação para a fila (upsert por cliente + telefone) ----
+  // ---- Importação para a fila, EM LOTE ----
+  // Inserir um a um derrubaria a rota por timeout em listas grandes
+  // (5.000 contatos = 5.000 idas ao banco). Aqui vão até 500 por
+  // consulta, usando UNNEST — poucas idas, sempre parametrizado.
   // Quem já atendeu (CONCLUIDA) não volta para a fila.
+  const TAMANHO_LOTE = 500;
   let importados = 0;
-  for (const c of contatos) {
+
+  for (let i = 0; i < contatos.length; i += TAMANHO_LOTE) {
+    const lote = contatos.slice(i, i + TAMANHO_LOTE);
+    const nomes = lote.map((c) => String(c.nome || "").slice(0, 120));
+    const telefones = lote.map((c) => String(c.telefone));
+
     await sql`
       INSERT INTO contatos (cliente_id, nome, telefone, agente, status)
-      VALUES (${cliente.id}, ${c.nome || ""}, ${c.telefone}, ${tipoAgente}, 'PENDENTE')
+      SELECT ${cliente.id}, x.nome, x.telefone, ${tipoAgente}, 'PENDENTE'
+      FROM UNNEST(${nomes}::text[], ${telefones}::text[]) AS x(nome, telefone)
       ON CONFLICT (cliente_id, telefone) DO UPDATE SET
         nome       = EXCLUDED.nome,
         agente     = EXCLUDED.agente,
@@ -89,7 +112,7 @@ async function executarCampanha(request) {
         tentativas = CASE WHEN contatos.status = 'CONCLUIDA' THEN contatos.tentativas ELSE 0 END,
         atualizado_em = NOW();
     `;
-    importados++;
+    importados += lote.length;
   }
 
   // ---- Pontapé inicial: abre todas as vagas simultâneas ----
