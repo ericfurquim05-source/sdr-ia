@@ -12,6 +12,7 @@ import {
   Plus,
   LogOut,
   CalendarCheck,
+  ShieldCheck,
 } from "lucide-react";
 
 const itens = [
@@ -24,7 +25,7 @@ const itens = [
   { rotulo: "Carteira", href: "/carteira", icone: Wallet },
 ];
 
-export default function Sidebar({ cliente, saldo = 0 }) {
+export default function Sidebar({ cliente, saldo = 0, admin = false }) {
   const pathname = usePathname();
   const precoMinuto = Number(cliente?.preco_minuto ?? 1.5);
   const minutos = Math.max(Math.floor(saldo / precoMinuto), 0);
@@ -64,7 +65,7 @@ export default function Sidebar({ cliente, saldo = 0 }) {
 
       {/* Navegação */}
       <nav className="flex-1 space-y-1 px-2 pt-4 lg:px-3">
-        {itens.map(({ rotulo, href, icone: Icone }) => {
+        {[...itens, ...(admin ? [{ rotulo: "Administração", href: "/admin", icone: ShieldCheck }] : [])].map(({ rotulo, href, icone: Icone }) => {
           const ativo = pathname === href;
           return (
             <Link

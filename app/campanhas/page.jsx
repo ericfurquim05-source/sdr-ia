@@ -38,6 +38,7 @@ export default function Campanhas() {
   const [tipoAgente, setTipoAgente] = useState(null);
   const [arrastando, setArrastando] = useState(false);
   const [executando, setExecutando] = useState(false);
+  const [progresso, setProgresso] = useState(null); // envio de listas grandes
   const [resultado, setResultado] = useState(null);
 
   const receberArquivo = async (file) => {
@@ -63,27 +64,55 @@ export default function Campanhas() {
     setResultado(null);
   };
 
+  // Listas grandes vão em blocos: 20 mil contatos numa requisição só
+  // estouraria o limite da rota. Cada bloco grava na fila; apenas o
+  // último inicia a discagem.
+  const TAMANHO_BLOCO = 2000;
+
   const executarCampanha = async () => {
     setExecutando(true);
     setResultado(null);
+    setProgresso(null);
+
+    const lista = contatos ?? [];
+    const totalBlocos = Math.ceil(lista.length / TAMANHO_BLOCO);
+
     try {
-      // Aciona o backend, que dispara as ligações na Retell AI
-      const resposta = await fetch("/api/campanhas/executar", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          tipoAgente,
-          nomeArquivo: arquivo?.name,
-          contatos: contatos ?? [],
-          totalContatos: contatos?.length ?? 0,
-        }),
-      });
-      const dados = await resposta.json();
-      // Saldo insuficiente ou não autenticado vêm com erro do servidor
-      setResultado(resposta.ok ? dados : { erro: true, ...dados });
+      for (let i = 0; i < totalBlocos; i++) {
+        const bloco = lista.slice(i * TAMANHO_BLOCO, (i + 1) * TAMANHO_BLOCO);
+        const ultimo = i === totalBlocos - 1;
+
+        if (totalBlocos > 1) {
+          setProgresso({
+            enviados: i * TAMANHO_BLOCO,
+            total: lista.length,
+          });
+        }
+
+        const resposta = await fetch("/api/campanhas/executar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            tipoAgente,
+            nomeArquivo: arquivo?.name,
+            contatos: bloco,
+            totalContatos: lista.length,
+            iniciar: ultimo, // só o último bloco dispara as ligações
+          }),
+        });
+
+        const dados = await resposta.json();
+
+        if (!resposta.ok) {
+          setResultado({ erro: true, ...dados });
+          return;
+        }
+        if (ultimo) setResultado(dados);
+      }
     } catch {
       setResultado({ erro: true, mensagem: "Não foi possível iniciar a campanha. Tente novamente." });
     } finally {
+      setProgresso(null);
       setExecutando(false);
     }
   };
@@ -199,7 +228,25 @@ export default function Campanhas() {
           </p>
         )}
 
-        {resultado && !resultado.erro && (
+        {progresso && (
+        <div className="card mb-4 p-4">
+          <p className="mb-2 text-sm text-slate-300">
+            Enviando contatos… <b className="text-white">{progresso.enviados}</b> de{" "}
+            <b className="text-white">{progresso.total}</b>
+          </p>
+          <div className="h-2 overflow-hidden rounded-full bg-navy-800">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-brand-blue to-brand-violet transition-all"
+              style={{ width: `${(progresso.enviados / progresso.total) * 100}%` }}
+            />
+          </div>
+          <p className="mt-2 text-xs text-slate-500">
+            Listas grandes são enviadas em partes. Não feche esta página.
+          </p>
+        </div>
+      )}
+
+      {resultado && !resultado.erro && (
           <div className="card flex items-start gap-3 border-emerald-500/30 p-4">
             <CheckCircle2 size={19} className="mt-0.5 shrink-0 text-emerald-400" />
             <div className="text-sm">

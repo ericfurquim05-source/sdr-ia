@@ -43,14 +43,14 @@ async function executarCampanha(request) {
     );
   }
 
-  // Teto por envio: acima disso o navegador e a rota sofrem.
-  // Listas maiores devem ser divididas em partes.
-  const LIMITE_POR_ENVIO = 5000;
-  if (contatos.length > LIMITE_POR_ENVIO) {
+  // Teto por BLOCO (não por lista): o navegador fatia listas grandes
+  // e envia em partes, então não há limite de tamanho total.
+  const LIMITE_POR_BLOCO = 3000;
+  if (contatos.length > LIMITE_POR_BLOCO) {
     return NextResponse.json(
       {
         erro: true,
-        mensagem: `Lista muito grande (${contatos.length} contatos). Divida em partes de até ${LIMITE_POR_ENVIO} e suba uma por vez.`,
+        mensagem: `Bloco muito grande (${contatos.length}). O envio deve ser feito em partes de até ${LIMITE_POR_BLOCO}.`,
       },
       { status: 413 }
     );
@@ -65,7 +65,7 @@ async function executarCampanha(request) {
     });
   }
 
-  // ---- Trava de saldo: bloqueia ANTES de aceitar a lista ----
+  // ---- Trava de saldo: avaliada no bloco que inicia a discagem ----
   const checagem = await podeIniciarCampanha({
     clienteId: cliente.id,
     precoMinuto: cliente.preco_minuto,
@@ -115,7 +115,12 @@ async function executarCampanha(request) {
     importados += lote.length;
   }
 
-  // ---- Pontapé inicial: abre todas as vagas simultâneas ----
+  // ---- Blocos intermediários: só gravam e devolvem ----
+  if (!iniciarDiscagem) {
+    return NextResponse.json({ ok: true, parcial: true, total: importados });
+  }
+
+  // ---- Último bloco: abre todas as vagas simultâneas ----
   const inicio = await preencherVagas(cliente.id);
 
   return NextResponse.json({

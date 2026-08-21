@@ -170,8 +170,22 @@ async function tratarEvento(request) {
         }
       }
 
-      // ---- 3. Saldo zerou? Pausa a campanha ----
+      // ---- 3. Saldo: avisa antes de acabar e pausa quando zera ----
       const saldo = await saldoAtual(clienteId);
+
+      // Aviso preventivo: registra um alerta quando o saldo fica baixo,
+      // para o cliente recarregar antes da campanha parar sozinha.
+      const limiteAviso = Number(process.env.SALDO_AVISO || 200);
+      if (saldo > 0 && saldo <= limiteAviso) {
+        await sql`
+          INSERT INTO lancamentos (cliente_id, tipo, valor, descricao, referencia)
+          VALUES (${clienteId}, 'ajuste', 0,
+            ${`Saldo baixo: R$ ${saldo.toFixed(2)} restantes. Recarregue para não interromper a campanha.`},
+            ${`aviso_saldo_${clienteId}_${new Date().toISOString().slice(0, 10)}`})
+          ON CONFLICT (tipo, referencia) WHERE referencia IS NOT NULL DO NOTHING;
+        `;
+      }
+
       if (saldo <= 0) {
         await pausarCampanha(clienteId, "saldo_esgotado");
         break;

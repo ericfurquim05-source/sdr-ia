@@ -1,7 +1,7 @@
 import { Inter, Space_Grotesk } from "next/font/google";
 import "./globals.css";
 import Sidebar from "@/components/Sidebar";
-import { clienteLogado } from "@/lib/auth";
+import { clienteLogado, ehAdmin } from "@/lib/auth";
 import { saldoAtual } from "@/lib/saldo";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
@@ -30,7 +30,7 @@ export default async function RootLayout({ children }) {
       <body className="font-sans">
         {cliente ? (
           <>
-            <Sidebar cliente={cliente} saldo={saldo} />
+            <Sidebar cliente={cliente} saldo={saldo} admin={ehAdmin(cliente)} />
             <main className="pl-16 lg:pl-64">
               <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-10">{children}</div>
             </main>

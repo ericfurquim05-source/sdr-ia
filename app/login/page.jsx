@@ -16,6 +16,29 @@ export default function Login() {
     onChange: (e) => setForm({ ...form, [chave]: e.target.value }),
   });
 
+  // Pede o link de redefinição para o e-mail informado
+  const recuperar = async () => {
+    if (!form.email) {
+      setErro("Digite seu e-mail acima para receber o link.");
+      return;
+    }
+    setEnviando(true);
+    setErro(null);
+    try {
+      const r = await fetch("/api/auth/recuperar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: form.email }),
+      });
+      const d = await r.json();
+      setErro(d.mensagem || "Solicitação registrada.");
+    } catch {
+      setErro("Falha de conexão.");
+    } finally {
+      setEnviando(false);
+    }
+  };
+
   const enviar = async () => {
     setEnviando(true);
     setErro(null);
@@ -109,6 +132,15 @@ export default function Login() {
               {enviando && <Loader2 size={16} className="animate-spin" />}
               {modo === "entrar" ? "Entrar" : "Criar minha conta"}
             </button>
+
+            {modo === "entrar" && (
+              <button
+                onClick={recuperar}
+                className="mt-1 text-center text-xs text-slate-500 transition hover:text-brand-blue"
+              >
+                Esqueci minha senha
+              </button>
+            )}
           </div>
         </div>
 
