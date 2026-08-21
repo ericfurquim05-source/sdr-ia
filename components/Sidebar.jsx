@@ -65,7 +65,7 @@ export default function Sidebar({ cliente, saldo = 0, admin = false }) {
 
       {/* Navegação */}
       <nav className="flex-1 space-y-1 px-2 pt-4 lg:px-3">
-        {[...itens, ...(admin ? [{ rotulo: "Administração", href: "/admin", icone: ShieldCheck }] : [])].map(({ rotulo, href, icone: Icone }) => {
+        {itens.map(({ rotulo, href, icone: Icone }) => {
           const ativo = pathname === href;
           return (
             <Link
@@ -94,6 +94,14 @@ export default function Sidebar({ cliente, saldo = 0, admin = false }) {
           <p className="truncate text-sm font-medium text-slate-200">
             {cliente.empresa || cliente.nome}
           </p>
+          {admin && (
+            <a
+              href="/admin"
+              className="mb-1.5 flex items-center gap-1.5 text-xs text-slate-600 transition hover:text-brand-blue"
+            >
+              <ShieldCheck size={12} /> Console
+            </a>
+          )}
           <button
             onClick={sair}
             className="mt-1 flex items-center gap-1.5 text-xs text-slate-500 transition hover:text-slate-300"
