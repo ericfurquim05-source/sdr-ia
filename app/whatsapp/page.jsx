@@ -1,7 +1,7 @@
 import WhatsappConversas from "@/components/WhatsappConversas";
 import { clienteLogado } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
-import { whatsappConfigurado, canalAtivo } from "@/lib/whatsapp";
+import { whatsappConfigurado, canalAtivo, verificarConexao } from "@/lib/whatsapp";
 import { autorespostaLigada } from "@/lib/ia";
 
 export const dynamic = "force-dynamic";
@@ -16,11 +16,14 @@ export default async function Whatsapp() {
   let conectado = false;
   let iaLigada = false;
   let canal = null;
+  let estado = null;
 
   try {
     const cliente = await clienteLogado();
     conectado = whatsappConfigurado();
     canal = canalAtivo();
+    // Confirma na fonte se o celular está mesmo conectado
+    if (canal === "zapi") estado = await verificarConexao();
     iaLigada = autorespostaLigada();
 
     if (cliente) {
@@ -67,6 +70,7 @@ export default async function Whatsapp() {
       conectado={conectado}
       iaLigada={iaLigada}
       canal={canal}
+      estado={estado}
     />
   );
 }

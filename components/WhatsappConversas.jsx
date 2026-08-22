@@ -86,7 +86,7 @@ function GuiaConexao() {
   );
 }
 
-export default function WhatsappConversas({ conversas = [], conectado = false, iaLigada = false, canal = null }) {
+export default function WhatsappConversas({ conversas = [], conectado = false, iaLigada = false, canal = null, estado = null }) {
   const router = useRouter();
   const [ativo, setAtivo] = useState(null);
   const [texto, setTexto] = useState("");
@@ -156,6 +156,32 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
 
       {!conectado && <GuiaConexao />}
 
+      {/* Estado real da instância, verificado na origem */}
+      {conectado && canal === "zapi" && estado && !estado.conectado && (
+        <div className="card mb-4 border-amber-500/30 bg-amber-500/5 p-4">
+          <p className="text-sm font-semibold text-amber-300">
+            As chaves estão configuradas, mas o celular não está conectado.
+          </p>
+          <p className="mt-1 text-xs leading-relaxed text-slate-400">
+            Abra o painel da Z-API, vá em Instâncias Web e leia o QR code com o
+            aparelho. Enquanto isso, nenhuma mensagem entra nem sai.
+            {estado.motivo && (
+              <>
+                <br />
+                <span className="text-slate-600">Retorno: {estado.motivo}</span>
+              </>
+            )}
+          </p>
+        </div>
+      )}
+
+      {conectado && canal === "zapi" && estado?.conectado && !estado.celularOnline && (
+        <p className="card mb-4 border-amber-500/20 p-3 text-xs text-amber-300/90">
+          A instância está ativa, mas o celular aparece offline. Se ele ficar sem
+          internet ou desligado, as mensagens param de sair.
+        </p>
+      )}
+
       {conectado && (
         <div className="card flex overflow-hidden" style={{ minHeight: 440 }}>
           {/* Lista de conversas */}
@@ -166,8 +192,19 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
           >
             {conversas.length === 0 && (
               <div className="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
-                <CheckCircle2 size={22} className="text-emerald-400" />
-                <p className="text-sm font-medium text-white">Número conectado!</p>
+                <CheckCircle2
+                  size={22}
+                  className={
+                    canal === "zapi" && estado && !estado.conectado
+                      ? "text-slate-600"
+                      : "text-emerald-400"
+                  }
+                />
+                <p className="text-sm font-medium text-white">
+                  {canal === "zapi" && estado && !estado.conectado
+                    ? "Aguardando conexão do celular"
+                    : "Número conectado!"}
+                </p>
                 <p className="text-xs text-slate-500">
                   As conversas aparecem aqui quando o follow-up automático disparar ou um lead
                   responder.
