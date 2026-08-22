@@ -153,6 +153,14 @@ export default function ChamadasReais({
         >
           Relatório de áudio
         </a>
+        <a
+          href="/api/relatorio/operadora?dias=30"
+          className="btn-fantasma text-sm"
+          download
+          title="CSV que agrupa os erros de operadora por causa: número morto, tronco congestionado ou conta — pronto para cobrar o fornecedor SIP"
+        >
+          Relatório de operadora
+        </a>
         <button onClick={importarHistorico} disabled={importando} className="btn-fantasma text-sm">
           {importando ? <Loader2 size={14} className="animate-spin" /> : <DownloadCloud size={14} />}
           Importar da Retell
