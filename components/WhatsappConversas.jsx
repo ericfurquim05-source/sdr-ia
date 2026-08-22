@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Send, ArrowLeft, MessageCircle, Sparkles, CheckCircle2, ExternalLink, Loader2,
@@ -94,6 +94,26 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
   const [aviso, setAviso] = useState(null);
 
   const conv = conversas.find((c) => c.telefone === ativo);
+  const fimDaLista = useRef(null);
+
+  /*
+   * Atualização automática: a conversa precisa andar sozinha, como
+   * em qualquer aplicativo de mensagem. A cada 8 segundos a tela
+   * busca o que chegou de novo — sem isso o usuário só veria a
+   * resposta do lead ao recarregar a página na mão.
+   */
+  useEffect(() => {
+    const timer = setInterval(() => {
+      // Não atualiza enquanto está digitando, para não perder o texto
+      if (!enviando && !texto) router.refresh();
+    }, 8000);
+    return () => clearInterval(timer);
+  }, [router, enviando, texto]);
+
+  // Rola para a última mensagem quando chega algo novo
+  useEffect(() => {
+    fimDaLista.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+  }, [conv?.mensagens?.length, ativo]);
 
   const fmtTel = (t) =>
     t.length === 11 ? `(${t.slice(0, 2)}) ${t.slice(2, 7)}-${t.slice(7)}` : t;
@@ -141,6 +161,19 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
             : "Conecte seu número para ativar o follow-up automático."
         }
       >
+        {conectado && (
+          <span
+            className="flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-500"
+            title="A tela busca mensagens novas a cada 8 segundos"
+          >
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            </span>
+            ao vivo
+          </span>
+        )}
+
         {conectado && (
           <span
             className={`flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
@@ -270,6 +303,7 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
                       </span>
                     </div>
                   ))}
+                  <div ref={fimDaLista} />
                 </div>
 
                 {aviso && (
