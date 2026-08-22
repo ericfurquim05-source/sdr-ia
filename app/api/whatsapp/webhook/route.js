@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { assinaturaMetaValida } from "@/lib/seguranca";
 import { garantirTabelas, sql } from "@/lib/db";
 import { normalizarTelefone } from "@/lib/planilha";
 import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
@@ -30,7 +31,14 @@ export async function GET(request) {
 // Mensagens recebidas dos leads
 export async function POST(request) {
   try {
-    const corpo = await request.json();
+    // Corpo bruto primeiro: a assinatura da Meta é sobre os bytes
+    // originais. Só depois de conferir é que o JSON é interpretado.
+    const corpoBruto = await request.text();
+    if (!assinaturaMetaValida(corpoBruto, request.headers.get("x-hub-signature-256"))) {
+      console.warn("webhook_meta_rejeitado: assinatura não confere");
+      return NextResponse.json({ erro: "assinatura_invalida" }, { status: 401 });
+    }
+    const corpo = JSON.parse(corpoBruto);
     await garantirTabelas();
 
     for (const entrada of corpo.entry ?? []) {

@@ -4,6 +4,7 @@ import { normalizarTelefone } from "@/lib/planilha";
 import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
 import { enviarTexto, ritmoDeDigitacao } from "@/lib/whatsapp";
 import { transcreverAudio, transcricaoDisponivel } from "@/lib/transcricao";
+import { segredoZapiConfere } from "@/lib/seguranca";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -22,10 +23,24 @@ export const maxDuration = 60;
  */
 export async function POST(request) {
   try {
+    // Só a Z-API conhece o segredo embutido na URL do webhook.
+    // Sem ele, qualquer um forjaria "mensagens do lead" e faria a
+    // Lara responder — gastando IA e enviando pelo nosso número.
+    if (!segredoZapiConfere(request)) {
+      console.warn("webhook_zapi_rejeitado: segredo ausente ou errado");
+      return NextResponse.json({ erro: "nao_autorizado" }, { status: 401 });
+    }
+
     const corpo = await request.json().catch(() => ({}));
 
     // Ignora o que nós mesmos enviamos e eventos que não são mensagem
     if (corpo?.fromMe) return NextResponse.json({ recebido: true });
+
+    // Mensagem de GRUPO nunca entra: a Lara responderia dentro do
+    // grupo, na frente de todo mundo — e conversa de grupo não é lead.
+    if (corpo?.isGroup || corpo?.broadcast) {
+      return NextResponse.json({ recebido: true });
+    }
 
     // A Z-API entrega cada tipo de mensagem num formato diferente.
     // Sem tratar todos, áudio e imagem chegariam e seriam descartados

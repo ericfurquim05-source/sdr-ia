@@ -9,6 +9,7 @@ import {
 } from "@/lib/fila";
 import { cobrarLigacao, saldoAtual } from "@/lib/saldo";
 import { enviarTemplate, whatsappConfigurado } from "@/lib/whatsapp";
+import { assinaturaRetellValida } from "@/lib/seguranca";
 
 export const maxDuration = 60;
 
@@ -52,7 +53,24 @@ const MOTIVOS_DE_FALHA = new Set([
 
 export async function POST(request) {
   try {
-    return await tratarEvento(request);
+    /*
+     * O corpo precisa ser lido BRUTO (texto) para conferir a
+     * assinatura — re-serializar o JSON mudaria os bytes e a
+     * conferência falharia sempre.
+     */
+    const corpoBruto = await request.text();
+    const valida = assinaturaRetellValida(
+      corpoBruto,
+      request.headers.get("x-retell-signature")
+    );
+    if (!valida.ok) {
+      console.warn("webhook_retell_rejeitado:", valida.motivo);
+      // 401 (e não 200): evento forjado não deve ser "aceito"
+      return NextResponse.json({ erro: "assinatura_invalida" }, { status: 401 });
+    }
+
+    const corpo = JSON.parse(corpoBruto);
+    return await tratarEvento(corpo);
   } catch (e) {
     // Nunca devolve 500: a Retell reenviaria o evento em loop.
     // O erro fica no log da Vercel para diagnóstico.
@@ -61,8 +79,7 @@ export async function POST(request) {
   }
 }
 
-async function tratarEvento(request) {
-  const corpo = await request.json();
+async function tratarEvento(corpo) {
   const evento = corpo.event;
   const chamada = corpo.call ?? corpo.data ?? {};
 

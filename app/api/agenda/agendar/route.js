@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { segredoAgendaConfere } from "@/lib/seguranca";
 import { sql, garantirTabelas } from "@/lib/db";
 import { agendarReuniao } from "@/lib/agenda";
 
@@ -11,6 +12,13 @@ export const dynamic = "force-dynamic";
  */
 export async function POST(request) {
   try {
+    // Só a custom function da Retell (que envia o cabeçalho
+    // x-agenda-segredo) pode consultar e marcar. Sem isso,
+    // qualquer um lotaria a agenda com reunião falsa.
+    if (!segredoAgendaConfere(request)) {
+      return NextResponse.json({ erro: "nao_autorizado" }, { status: 401 });
+    }
+
     const corpo = await request.json().catch(() => ({}));
     const clienteId = corpo?.call?.metadata?.cliente_id ?? null;
     const contatoId = corpo?.call?.metadata?.contato_id ?? null;
