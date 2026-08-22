@@ -26,12 +26,25 @@ export async function POST(request) {
     // Ignora o que nós mesmos enviamos e eventos que não são mensagem
     if (corpo?.fromMe) return NextResponse.json({ recebido: true });
 
+    // A Z-API entrega cada tipo de mensagem num formato diferente.
+    // Sem tratar todos, áudio e imagem chegariam e seriam descartados
+    // em silêncio — o lead falaria e ninguém veria.
     const texto =
       corpo?.text?.message ??
       corpo?.message?.text ??
       corpo?.body ??
+      corpo?.buttonsResponseMessage?.message ??
+      corpo?.listResponseMessage?.message ??
+      (corpo?.audio ? "[áudio recebido]" : null) ??
+      (corpo?.image ? `[imagem recebida]${corpo.image.caption ? " " + corpo.image.caption : ""}` : null) ??
+      (corpo?.video ? `[vídeo recebido]${corpo.video.caption ? " " + corpo.video.caption : ""}` : null) ??
+      (corpo?.document ? "[documento recebido]" : null) ??
+      (corpo?.sticker ? "[figurinha recebida]" : null) ??
+      (corpo?.contact ? "[contato compartilhado]" : null) ??
+      (corpo?.location ? "[localização compartilhada]" : null) ??
       null;
-    if (!texto) return NextResponse.json({ recebido: true });
+
+    if (!texto) return NextResponse.json({ recebido: true, aviso: "sem_conteudo_legivel" });
 
     const telefone = normalizarTelefone(corpo?.phone ?? corpo?.from ?? "");
     if (!telefone) return NextResponse.json({ recebido: true });
@@ -51,8 +64,12 @@ export async function POST(request) {
       VALUES (${clienteId}, ${telefone}, 'in', ${texto});
     `;
 
+    // A Lara só responde a texto de verdade. Mídia é registrada,
+    // mas responder "[áudio recebido]" geraria resposta sem sentido.
+    const ehTextoReal = !texto.startsWith("[");
+
     // A Lara responde com o contexto da ligação
-    if (autorespostaLigada()) {
+    if (autorespostaLigada() && ehTextoReal) {
       try {
         const resposta = await responderComoSdr({ clienteId, telefone });
         if (resposta) {
