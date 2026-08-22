@@ -98,12 +98,30 @@ export async function POST(request) {
           const { rows: cli } = await sql`
             SELECT preco_conversa FROM clientes WHERE id = ${clienteId} LIMIT 1;
           `;
-          await enviarTexto({
-            clienteId,
-            precoConversa: cli[0]?.preco_conversa ?? 0.5,
-            telefone,
-            texto: resposta,
-          });
+          const preco = cli[0]?.preco_conversa ?? 0.5;
+
+          // A IA separa a resposta com || para simular quem digita
+          // várias mensagens curtas. Enviamos uma de cada vez, com
+          // uma pausa curta entre elas, como uma pessoa faria.
+          const partes = String(resposta)
+            .split("||")
+            .map((t) => t.trim())
+            .filter(Boolean)
+            .slice(0, 4);
+
+          for (let i = 0; i < partes.length; i++) {
+            await enviarTexto({
+              clienteId,
+              precoConversa: i === 0 ? preco : 0, // cobra a janela uma vez só
+              telefone,
+              texto: partes[i],
+            });
+            // Pausa proporcional ao tamanho, como quem digita
+            if (i < partes.length - 1) {
+              const espera = Math.min(1200 + partes[i + 1].length * 35, 4000);
+              await new Promise((r) => setTimeout(r, espera));
+            }
+          }
         }
       } catch (e) {
         console.error("autoresposta_zapi_erro:", e);
