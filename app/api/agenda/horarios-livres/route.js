@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { segredoAgendaConfere } from "@/lib/seguranca";
-import { horariosLivres } from "@/lib/agenda";
+import { horariosLivres, reuniaoJaMarcada } from "@/lib/agenda";
+import { sql } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
 
@@ -25,8 +26,27 @@ export async function POST(request) {
     }
 
     const resultado = await horariosLivres(clienteId);
+
+    // Este lead já tem reunião? Avisa a IA para não "corrigir" a
+    // própria marcação ao ver o horário ocupado na consulta.
+    let jaMarcada = null;
+    const contatoId = corpo?.call?.metadata?.contato_id ?? null;
+    if (contatoId) {
+      const { rows } = await sql`SELECT telefone FROM contatos WHERE id = ${contatoId} LIMIT 1;`;
+      if (rows[0]?.telefone) {
+        jaMarcada = await reuniaoJaMarcada(clienteId, rows[0].telefone);
+      }
+    }
+
     return NextResponse.json({
       ...resultado,
+      ...(jaMarcada
+        ? {
+            reuniao_ja_marcada: jaMarcada,
+            instrucao:
+              "ATENÇÃO: este lead JÁ TEM reunião marcada (acima). Não ofereça novos horários — apenas confirme a reunião existente. Só use os horários livres se o lead PEDIR para remarcar.",
+          }
+        : {}),
       regras: "Atendimento de segunda a sábado, das 08:00 às 21:00.",
     });
   } catch (e) {
