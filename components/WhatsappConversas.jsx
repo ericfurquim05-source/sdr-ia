@@ -322,8 +322,16 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline justify-between">
-                      <p className="truncate text-sm font-semibold text-white">
-                        {c.nome || fmtTel(c.telefone)}
+                      <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-white">
+                        {c.prioridade && (
+                          <span
+                            className={`h-1.5 w-1.5 shrink-0 rounded-full ${
+                              c.prioridade === "alta" ? "bg-rose-400" : "bg-amber-400"
+                            }`}
+                            title={`Prioridade ${c.prioridade}`}
+                          />
+                        )}
+                        <span className="truncate">{c.nome || fmtTel(c.telefone)}</span>
                       </p>
                       <span className="ml-2 shrink-0 text-xs text-slate-500">
                         {fmtHora(ultima.criado_em)}
@@ -344,10 +352,41 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
                   <button onClick={() => setAtivo(null)} className="text-slate-500 sm:hidden">
                     <ArrowLeft size={18} />
                   </button>
-                  <p className="text-sm font-semibold text-white">
-                    {conv.nome || fmtTel(conv.telefone)}
-                  </p>
-                  <span className="text-xs text-slate-600">{fmtTel(conv.telefone)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-semibold text-white">
+                      {conv.nome || fmtTel(conv.telefone)}
+                      <span className="text-xs font-normal text-slate-600">
+                        {fmtTel(conv.telefone)}
+                      </span>
+
+                      {/* Contexto vindo da ligação — só quem opera enxerga */}
+                      {conv.prioridade && (
+                        <span
+                          className={`rounded-md px-1.5 py-0.5 text-xs font-bold ${
+                            conv.prioridade === "alta"
+                              ? "bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/40"
+                              : "bg-amber-500/10 text-amber-300 ring-1 ring-amber-500/30"
+                          }`}
+                        >
+                          {conv.prioridade === "alta" ? "ALTA" : "BAIXA"}
+                        </span>
+                      )}
+
+                      {(conv.sinais ?? []).slice(0, 3).map((si) => (
+                        <span
+                          key={si.rotulo}
+                          className="rounded-md px-1.5 py-0.5 text-xs font-medium"
+                          style={{
+                            background: `${si.cor}1f`,
+                            color: si.cor,
+                            border: `1px solid ${si.cor}44`,
+                          }}
+                        >
+                          {si.rotulo}
+                        </span>
+                      ))}
+                    </p>
+                  </div>
                 </div>
 
                 <div className="flex flex-1 flex-col gap-2 overflow-y-auto p-4">
