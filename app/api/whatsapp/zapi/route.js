@@ -5,6 +5,7 @@ import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
 import { enviarTexto, ritmoDeDigitacao } from "@/lib/whatsapp";
 import { transcreverAudio, transcricaoDisponivel } from "@/lib/transcricao";
 import { segredoZapiConfere } from "@/lib/seguranca";
+import { processarLembretes } from "@/lib/lembretes";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -171,6 +172,9 @@ export async function POST(request) {
         console.error("autoresposta_zapi_erro:", e);
       }
     }
+
+    // Carona: cada mensagem que chega também despacha lembretes pendentes
+    await processarLembretes().catch((e) => console.error("lembretes:", e));
 
     return NextResponse.json({ recebido: true });
   } catch (e) {

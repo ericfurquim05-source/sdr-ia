@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { garantirTabelas, sql } from "@/lib/db";
 import { clienteLogado } from "@/lib/auth";
 import { preencherVagas, resumoFila, ultimosMotivos } from "@/lib/fila";
+import { processarLembretes } from "@/lib/lembretes";
 import { saldoAtual } from "@/lib/saldo";
 
 export const maxDuration = 60;
@@ -38,6 +39,8 @@ export async function GET(request) {
     }
 
     await garantirTabelas();
+    // Lembretes de reunião pegam carona em toda passada da fila
+    await processarLembretes().catch((e) => console.error("lembretes:", e));
 
     // Destrava chamadas penduradas há mais de 15 min (webhook perdido)
     await sql`

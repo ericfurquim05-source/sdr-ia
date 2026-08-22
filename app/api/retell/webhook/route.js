@@ -11,6 +11,7 @@ import { cobrarLigacao, saldoAtual } from "@/lib/saldo";
 import { enviarTemplate, whatsappConfigurado } from "@/lib/whatsapp";
 import { assinaturaRetellValida } from "@/lib/seguranca";
 import { detectarSinais } from "@/lib/sinais";
+import { processarLembretes } from "@/lib/lembretes";
 
 export const maxDuration = 60;
 
@@ -71,7 +72,10 @@ export async function POST(request) {
     }
 
     const corpo = JSON.parse(corpoBruto);
-    return await tratarEvento(corpo);
+    const resposta = await tratarEvento(corpo);
+    // Carona: todo fim de ligação é uma chance de despachar lembretes
+    await processarLembretes().catch((e) => console.error("lembretes:", e));
+    return resposta;
   } catch (e) {
     // Nunca devolve 500: a Retell reenviaria o evento em loop.
     // O erro fica no log da Vercel para diagnóstico.
