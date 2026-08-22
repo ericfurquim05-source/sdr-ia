@@ -46,6 +46,28 @@ export async function POST(request) {
 
     if (!texto) return NextResponse.json({ recebido: true, aviso: "sem_conteudo_legivel" });
 
+    // Link do anexo, para tocar o áudio ou exibir a imagem na conversa
+    const midiaUrl =
+      corpo?.audio?.audioUrl ??
+      corpo?.audio?.url ??
+      corpo?.image?.imageUrl ??
+      corpo?.image?.url ??
+      corpo?.video?.videoUrl ??
+      corpo?.video?.url ??
+      corpo?.document?.documentUrl ??
+      corpo?.document?.url ??
+      null;
+
+    const midiaTipo = corpo?.audio
+      ? "audio"
+      : corpo?.image
+        ? "imagem"
+        : corpo?.video
+          ? "video"
+          : corpo?.document
+            ? "documento"
+            : null;
+
     const telefone = normalizarTelefone(corpo?.phone ?? corpo?.from ?? "");
     if (!telefone) return NextResponse.json({ recebido: true });
 
@@ -60,8 +82,8 @@ export async function POST(request) {
     if (!clienteId) return NextResponse.json({ recebido: true });
 
     await sql`
-      INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto)
-      VALUES (${clienteId}, ${telefone}, 'in', ${texto});
+      INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto, midia_url, midia_tipo)
+      VALUES (${clienteId}, ${telefone}, 'in', ${texto}, ${midiaUrl}, ${midiaTipo});
     `;
 
     // A Lara só responde a texto de verdade. Mídia é registrada,

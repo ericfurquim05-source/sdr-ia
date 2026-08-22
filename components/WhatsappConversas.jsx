@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Send, ArrowLeft, MessageCircle, Sparkles, CheckCircle2, ExternalLink, Loader2,
+  Play, Pause, FileText, Download,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
 
@@ -83,6 +84,68 @@ function GuiaConexao() {
         <code>ANTHROPIC_API_KEY</code> a IA continua a conversa usando o contexto da ligação.
       </p>
     </div>
+  );
+}
+
+/*
+ * Áudio dentro da conversa. O link vem da Z-API e pode expirar com
+ * o tempo, por isso o botão avisa quando não consegue tocar em vez
+ * de ficar mudo.
+ */
+function AudioDaConversa({ url, clara = false }) {
+  const audioRef = useRef(null);
+  const [tocando, setTocando] = useState(false);
+  const [falhou, setFalhou] = useState(false);
+
+  useEffect(() => {
+    const a = new Audio(url);
+    audioRef.current = a;
+    a.onended = () => setTocando(false);
+    a.onerror = () => {
+      setFalhou(true);
+      setTocando(false);
+    };
+    return () => {
+      a.pause();
+      a.src = "";
+      audioRef.current = null;
+    };
+  }, [url]);
+
+  const alternar = () => {
+    const a = audioRef.current;
+    if (!a) return;
+    if (a.paused) {
+      a.play().catch(() => setFalhou(true));
+      setTocando(true);
+    } else {
+      a.pause();
+      setTocando(false);
+    }
+  };
+
+  if (falhou) {
+    return (
+      <a
+        href={url}
+        target="_blank"
+        className={`flex items-center gap-2 text-xs underline ${clara ? "text-white/80" : "text-slate-400"}`}
+      >
+        <Download size={12} /> abrir áudio
+      </a>
+    );
+  }
+
+  return (
+    <button
+      onClick={alternar}
+      className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs transition ${
+        clara ? "bg-white/15 text-white hover:bg-white/25" : "bg-white/5 text-slate-200 hover:bg-white/10"
+      }`}
+    >
+      {tocando ? <Pause size={13} /> : <Play size={13} />}
+      {tocando ? "Pausar áudio" : "Ouvir áudio"}
+    </button>
   );
 }
 
@@ -297,6 +360,33 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
                           : "self-start border border-white/10 bg-navy-800 text-slate-200"
                       }`}
                     >
+                      {/* Áudio, imagem e documento aparecem dentro da própria bolha */}
+                      {m.midiaUrl && m.midiaTipo === "audio" && (
+                        <div className="mb-1">
+                          <AudioDaConversa url={m.midiaUrl} clara={m.direcao === "out"} />
+                        </div>
+                      )}
+
+                      {m.midiaUrl && m.midiaTipo === "imagem" && (
+                        <a href={m.midiaUrl} target="_blank">
+                          <img
+                            src={m.midiaUrl}
+                            alt="Imagem recebida"
+                            className="mb-1 max-h-52 rounded-lg object-cover"
+                          />
+                        </a>
+                      )}
+
+                      {m.midiaUrl && (m.midiaTipo === "documento" || m.midiaTipo === "video") && (
+                        <a
+                          href={m.midiaUrl}
+                          target="_blank"
+                          className="mb-1 flex items-center gap-1.5 text-xs underline opacity-90"
+                        >
+                          <FileText size={12} /> abrir arquivo
+                        </a>
+                      )}
+
                       {m.texto}
                       <span className="mt-1 block text-right text-[10px] opacity-60">
                         {fmtHora(m.criado_em)}

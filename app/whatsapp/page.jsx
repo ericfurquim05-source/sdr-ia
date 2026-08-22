@@ -29,7 +29,7 @@ export default async function Whatsapp() {
     if (cliente) {
       await garantirTabelas();
       const { rows: msgs } = await sql`
-        SELECT telefone, direcao, texto, criado_em FROM mensagens_wa
+        SELECT telefone, direcao, texto, midia_url, midia_tipo, criado_em FROM mensagens_wa
         WHERE cliente_id = ${cliente.id}
         ORDER BY criado_em ASC
         LIMIT 500;
@@ -51,6 +51,8 @@ export default async function Whatsapp() {
         porTelefone.get(m.telefone).mensagens.push({
           direcao: m.direcao,
           texto: m.texto,
+          midiaUrl: m.midia_url,
+          midiaTipo: m.midia_tipo,
           criado_em: m.criado_em.toISOString(),
         });
       }
