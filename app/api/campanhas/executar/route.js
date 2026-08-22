@@ -34,7 +34,7 @@ async function executarCampanha(request) {
     return NextResponse.json({ erro: true, mensagem: "Faça login para executar campanhas." }, { status: 401 });
   }
 
-  const { tipoAgente, contatos = [] } = await request.json();
+  const { tipoAgente, contatos = [], iniciar: iniciarDiscagem = true } = await request.json();
 
   if (!Array.isArray(contatos) || contatos.length === 0) {
     return NextResponse.json(

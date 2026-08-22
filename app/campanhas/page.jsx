@@ -32,37 +32,62 @@ const agentes = [
 
 export default function Campanhas() {
   const inputRef = useRef(null);
-  const [arquivo, setArquivo] = useState(null);
-  const [analise, setAnalise] = useState(null);   // colunas + linhas cruas
-  const [contatos, setContatos] = useState(null); // já convertidos
+  // Várias planilhas de uma vez: cada uma com sua conferência de
+  // colunas. Na hora de executar, tudo vira uma lista só, sem
+  // telefone repetido entre os arquivos.
+  const [planilhas, setPlanilhas] = useState([]); // {id, arquivo, analise, contatos}
   const [tipoAgente, setTipoAgente] = useState(null);
   const [arrastando, setArrastando] = useState(false);
   const [executando, setExecutando] = useState(false);
   const [progresso, setProgresso] = useState(null); // envio de listas grandes
   const [resultado, setResultado] = useState(null);
 
-  const receberArquivo = async (file) => {
-    if (!file) return;
-    setArquivo(file);
+  const receberArquivos = async (files) => {
+    const lista = Array.from(files || []).filter(Boolean);
+    if (lista.length === 0) return;
     setResultado(null);
-    setContatos(null);
-    setAnalise(null);
-    try {
-      // Não converte na marra: analisa e deixa o cliente conferir as colunas
-      const dados = await analisarPlanilha(file);
-      setAnalise(dados);
-    } catch {
-      setResultado({ erro: true, mensagem: "Não consegui ler essa planilha. Tente salvar como CSV." });
-      setArquivo(null);
+    for (const file of lista) {
+      try {
+        // Não converte na marra: analisa e deixa o cliente conferir as colunas
+        const dados = await analisarPlanilha(file);
+        setPlanilhas((atuais) => [
+          ...atuais,
+          { id: `${Date.now()}-${file.name}`, arquivo: file, analise: dados, contatos: null },
+        ]);
+      } catch {
+        setResultado({
+          erro: true,
+          mensagem: `Não consegui ler "${file.name}". Tente salvar como CSV.`,
+        });
+      }
     }
   };
 
-  const limparArquivo = () => {
-    setArquivo(null);
-    setAnalise(null);
-    setContatos(null);
+  const removerPlanilha = (id) => {
+    setPlanilhas((atuais) => atuais.filter((pl) => pl.id !== id));
     setResultado(null);
   };
+
+  const contatosDaPlanilha = (id, convertidos) => {
+    setPlanilhas((atuais) =>
+      atuais.map((pl) => (pl.id === id ? { ...pl, contatos: convertidos } : pl))
+    );
+  };
+
+  // Junta todas as planilhas numa lista só, sem telefone repetido
+  // entre arquivos (o primeiro que aparecer fica).
+  const vistos = new Set();
+  const contatosCombinados = planilhas
+    .flatMap((pl) => pl.contatos ?? [])
+    .filter((c) => {
+      const tel = String(c.telefone);
+      if (vistos.has(tel)) return false;
+      vistos.add(tel);
+      return true;
+    });
+  const duplicadosEntrePlanilhas =
+    planilhas.reduce((soma, pl) => soma + (pl.contatos?.length ?? 0), 0) -
+    contatosCombinados.length;
 
   // Listas grandes vão em blocos: 20 mil contatos numa requisição só
   // estouraria o limite da rota. Cada bloco grava na fila; apenas o
@@ -74,7 +99,7 @@ export default function Campanhas() {
     setResultado(null);
     setProgresso(null);
 
-    const lista = contatos ?? [];
+    const lista = contatosCombinados;
     const totalBlocos = Math.ceil(lista.length / TAMANHO_BLOCO);
 
     try {
@@ -94,7 +119,7 @@ export default function Campanhas() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             tipoAgente,
-            nomeArquivo: arquivo?.name,
+            nomeArquivo: planilhas.map((pl) => pl.arquivo?.name).filter(Boolean).join(", "),
             contatos: bloco,
             totalContatos: lista.length,
             iniciar: ultimo, // só o último bloco dispara as ligações
@@ -117,7 +142,11 @@ export default function Campanhas() {
     }
   };
 
-  const pronto = arquivo && tipoAgente && contatos && contatos.length > 0;
+  const pronto =
+    planilhas.length > 0 &&
+    planilhas.every((pl) => Array.isArray(pl.contatos)) &&
+    tipoAgente &&
+    contatosCombinados.length > 0;
 
   return (
     <>
@@ -133,51 +162,75 @@ export default function Campanhas() {
             1. Lista de contatos
           </h2>
 
-          {!arquivo ? (
-            <div
-              onClick={() => inputRef.current?.click()}
-              onDragOver={(e) => {
-                e.preventDefault();
-                setArrastando(true);
-              }}
-              onDragLeave={() => setArrastando(false)}
-              onDrop={(e) => {
-                e.preventDefault();
-                setArrastando(false);
-                receberArquivo(e.dataTransfer.files?.[0]);
-              }}
-              className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-6 py-12 text-center transition ${
-                arrastando
-                  ? "border-brand-blue bg-brand-blue/5"
-                  : "border-white/10 hover:border-brand-blue/50 hover:bg-white/5"
-              }`}
-            >
-              <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-blue/20 to-brand-violet/20">
-                <UploadCloud size={26} className="text-brand-blue" />
-              </span>
-              <p className="font-medium text-slate-200">
-                Arraste a planilha aqui ou toque para selecionar
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                CSV ou Excel · colunas: nome, telefone
-              </p>
-              <input
-                ref={inputRef}
-                type="file"
-                accept=".csv,.xlsx,.xls"
-                className="hidden"
-                onChange={(e) => receberArquivo(e.target.files?.[0])}
+          {planilhas.map((pl) => (
+            <div key={pl.id} className="mb-4">
+              <ConferenciaPlanilha
+                analise={pl.analise}
+                arquivo={pl.arquivo}
+                onPronto={(convertidos) => contatosDaPlanilha(pl.id, convertidos)}
+                onRemover={() => removerPlanilha(pl.id)}
               />
             </div>
-          ) : analise ? (
-            <ConferenciaPlanilha
-              analise={analise}
-              arquivo={arquivo}
-              onPronto={setContatos}
-              onRemover={limparArquivo}
+          ))}
+
+          <div
+            onClick={() => inputRef.current?.click()}
+            onDragOver={(e) => {
+              e.preventDefault();
+              setArrastando(true);
+            }}
+            onDragLeave={() => setArrastando(false)}
+            onDrop={(e) => {
+              e.preventDefault();
+              setArrastando(false);
+              receberArquivos(e.dataTransfer.files);
+            }}
+            className={`flex cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed text-center transition ${
+              planilhas.length === 0 ? "px-6 py-12" : "px-6 py-6"
+            } ${
+              arrastando
+                ? "border-brand-blue bg-brand-blue/5"
+                : "border-white/10 hover:border-brand-blue/50 hover:bg-white/5"
+            }`}
+          >
+            {planilhas.length === 0 ? (
+              <>
+                <span className="mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-brand-blue/20 to-brand-violet/20">
+                  <UploadCloud size={26} className="text-brand-blue" />
+                </span>
+                <p className="font-medium text-slate-200">
+                  Arraste uma ou mais planilhas aqui ou toque para selecionar
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  CSV ou Excel · colunas: nome, telefone
+                </p>
+              </>
+            ) : (
+              <p className="flex items-center gap-2 text-sm text-slate-400">
+                <UploadCloud size={16} className="text-brand-blue" /> Adicionar outra planilha
+              </p>
+            )}
+            <input
+              ref={inputRef}
+              type="file"
+              accept=".csv,.xlsx,.xls"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                receberArquivos(e.target.files);
+                e.target.value = "";
+              }}
             />
-          ) : (
-            <p className="text-sm text-slate-500">Lendo planilha...</p>
+          </div>
+
+          {planilhas.length > 1 && contatosCombinados.length > 0 && (
+            <p className="mt-3 text-sm text-slate-400">
+              Total combinado: <b className="text-white">{contatosCombinados.length}</b> contatos de{" "}
+              {planilhas.length} planilhas
+              {duplicadosEntrePlanilhas > 0 && (
+                <> · {duplicadosEntrePlanilhas} repetidos entre planilhas removidos</>
+              )}
+            </p>
           )}
         </section>
 

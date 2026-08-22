@@ -53,6 +53,7 @@ export default function ChamadasReais({
   de,
   ate,
   horas = null,
+  oportunidades = [],
   ordem = "duracao_desc",
   totais = { total: 0, atendidas: 0, msTotal: 0 },
 }) {
@@ -94,22 +95,26 @@ export default function ChamadasReais({
 
   const statusDe = (l) => (l.sucesso ? "Atendida" : "Não atendida");
 
-  const lista = ligacoes.filter((l) => {
-    const nivel = nivelPrioridade(sinaisDe(l), l.duracao_ms);
-    const okFiltro =
-      filtro === "Todas"
-        ? true
-        : filtro === "Prioridade alta"
-          ? nivel === "alta"
-          : filtro === "Prioridade baixa"
-            ? nivel === "baixa"
-            : statusDe(l) === filtro;
-    const okBusca = (l.nome + " " + l.telefone).toLowerCase().includes(busca.toLowerCase());
-    return okFiltro && okBusca;
-  });
+  // Prioridade nasce das oportunidades do PERÍODO inteiro (vindas do
+  // servidor), não das 200 ligações visíveis — senão a conta zera
+  // sempre que as mais recentes são uma rajada de não-atendidas.
+  const filtraBusca = (l) =>
+    (l.nome + " " + l.telefone).toLowerCase().includes(busca.toLowerCase());
 
-  const totalAlta = ligacoes.filter((l) => nivelPrioridade(sinaisDe(l), l.duracao_ms) === "alta").length;
-  const totalBaixa = ligacoes.filter((l) => nivelPrioridade(sinaisDe(l), l.duracao_ms) === "baixa").length;
+  const comNivel = oportunidades.map((l) => ({
+    ...l,
+    _nivel: nivelPrioridade(sinaisDe(l), l.duracao_ms),
+  }));
+
+  const lista =
+    filtro === "Prioridade alta"
+      ? comNivel.filter((l) => l._nivel === "alta" && filtraBusca(l))
+      : filtro === "Prioridade baixa"
+        ? comNivel.filter((l) => l._nivel === "baixa" && filtraBusca(l))
+        : ligacoes.filter((l) => (filtro === "Todas" || statusDe(l) === filtro) && filtraBusca(l));
+
+  const totalAlta = comNivel.filter((l) => l._nivel === "alta").length;
+  const totalBaixa = comNivel.filter((l) => l._nivel === "baixa").length;
 
   const fmtHora = (iso) =>
     new Date(iso).toLocaleString("pt-BR", {

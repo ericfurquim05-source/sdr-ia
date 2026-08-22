@@ -25,6 +25,7 @@ export default async function SdrIa({ searchParams }) {
   const ordem = ORDENS.includes(searchParams?.ordem) ? searchParams.ordem : "duracao_desc";
 
   let ligacoes = [];
+  let oportunidades = [];
   let totais = { total: 0, atendidas: 0, msTotal: 0 };
 
   try {
@@ -51,6 +52,29 @@ export default async function SdrIa({ searchParams }) {
       `;
       ligacoes = rows.map((r) => ({ ...r, criado_em: r.criado_em.toISOString() }));
 
+      /*
+       * As PRIORIDADES olham o período INTEIRO, não as 200 da lista.
+       * Motivo: com milhares de ligações no período, as 200 mais
+       * recentes costumam ser a rajada de não-atendidas — e as
+       * conversas boas sumiam da conta (0 alta / 0 baixa).
+       * Candidata a prioridade = atendida com 1min10+ de conversa.
+       */
+      const { rows: cand } = await sql`
+        SELECT id, nome, telefone, duracao_ms::int AS duracao_ms, motivo, sucesso,
+               recording_url, transcript, resumo, criado_em
+        FROM ligacoes
+        WHERE cliente_id = ${cliente.id}
+          AND sucesso = TRUE
+          AND duracao_ms >= 70000
+          AND (
+            (${horas}::int IS NULL AND (criado_em AT TIME ZONE 'America/Sao_Paulo')::date BETWEEN ${de}::date AND ${ate}::date)
+            OR (${horas}::int IS NOT NULL AND criado_em > NOW() - (${horas}::int * INTERVAL '1 hour'))
+          )
+        ORDER BY duracao_ms DESC
+        LIMIT 300;
+      `;
+      oportunidades = cand.map((r) => ({ ...r, criado_em: r.criado_em.toISOString() }));
+
       const { rows: agg } = await sql`
         SELECT COUNT(*)::int AS total,
                COUNT(*) FILTER (WHERE sucesso)::int AS atendidas,
@@ -75,6 +99,7 @@ export default async function SdrIa({ searchParams }) {
   return (
     <ChamadasReais
       ligacoes={ligacoes}
+      oportunidades={oportunidades}
       de={de}
       ate={ate}
       horas={horas}
