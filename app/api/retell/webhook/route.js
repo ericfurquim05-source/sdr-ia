@@ -128,12 +128,13 @@ async function tratarEvento(request) {
       // número na Meta (limite diário e queda de qualidade).
       //
       // Dois casos habilitados:
-      //  1. FALOU e não fechou: conversou mais de 1 minuto (padrão), mas
+      //  1. FALOU e não fechou: conversou mais de 1min10 (padrão), mas
       //     a ligação terminou sem reunião marcada. Abaixo disso quase
-      //     sempre foi recusa rápida, não conversa.
+      //     sempre foi recusa rápida, não conversa — é a mesma régua
+      //     das oportunidades no painel.
       //  2. ÁUDIO RUIM: atendeu, mas a chamada caiu cedo ou a pessoa
       //     não conseguiu ouvir. Não é rejeição, é falha técnica.
-      const segundosMinimos = Number(process.env.WHATSAPP_APOS_SEGUNDOS || 60);
+      const segundosMinimos = Number(process.env.WHATSAPP_APOS_SEGUNDOS || 70);
       const textoConversa = `${chamada.transcript ?? ""}`.toLowerCase();
       const audioRuim =
         /não consigo (te )?entender|nao consigo (te )?entender|não estou ouvindo|nao estou ouvindo|está ruim|ta ruim|abafado|cortando|repet/.test(

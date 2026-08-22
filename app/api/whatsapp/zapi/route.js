@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { garantirTabelas, sql } from "@/lib/db";
 import { normalizarTelefone } from "@/lib/planilha";
 import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
-import { enviarTexto } from "@/lib/whatsapp";
+import { enviarTexto, ritmoDeDigitacao } from "@/lib/whatsapp";
 import { transcreverAudio, transcricaoDisponivel } from "@/lib/transcricao";
 
 export const dynamic = "force-dynamic";
@@ -124,11 +124,26 @@ export async function POST(request) {
               precoConversa: i === 0 ? preco : 0, // cobra a janela uma vez só
               telefone,
               texto: partes[i],
+              /*
+               * A humanização acontece do lado da Z-API, na tela do
+               * lead: antes do primeiro balão há uma pausa de
+               * "leitura" (ninguém responde no segundo em que a
+               * mensagem chega) e, antes de cada balão, o status
+               * "Digitando..." fica visível por um tempo
+               * proporcional ao tamanho do texto.
+               */
+              ritmo: {
+                delayMessage: i === 0 ? 2 + Math.floor(Math.random() * 3) : 1,
+                delayTyping: ritmoDeDigitacao(partes[i]),
+              },
             });
-            // Pausa proporcional ao tamanho, como quem digita
+            /*
+             * Intervalo curto apenas para garantir a ordem de
+             * entrada na fila da Z-API — o ritmo humano quem faz
+             * é o delayTyping acima, fora da Vercel.
+             */
             if (i < partes.length - 1) {
-              const espera = Math.min(1200 + partes[i + 1].length * 35, 4000);
-              await new Promise((r) => setTimeout(r, espera));
+              await new Promise((r) => setTimeout(r, 600));
             }
           }
         }

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { exigirCliente } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
 import { enviarTemplate, canalAtivo } from "@/lib/whatsapp";
+import { detectarSinais, nivelPrioridade } from "@/lib/sinais";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -67,10 +68,12 @@ export async function POST() {
   try {
     await garantirTabelas();
 
-    // Quem conversou de verdade e ainda não recebeu nada
-    const { rows: leads } = await sql`
+    // Quem conversou de verdade e ainda não recebeu nada.
+    // Traz a transcrição junto para classificar a fila.
+    const { rows: pendentes } = await sql`
       SELECT DISTINCT ON (l.telefone)
-             l.telefone, l.nome, l.duracao_ms::int AS duracao_ms
+             l.telefone, l.nome, l.duracao_ms::int AS duracao_ms,
+             l.transcript, l.resumo
       FROM ligacoes l
       WHERE l.cliente_id = ${cliente.id}
         AND l.sucesso = TRUE
@@ -80,8 +83,27 @@ export async function POST() {
           WHERE m.cliente_id = l.cliente_id AND m.telefone = l.telefone
         )
       ORDER BY l.telefone, l.duracao_ms DESC
-      LIMIT ${POR_LOTE};
+      LIMIT 400;
     `;
+
+    /*
+     * ORDEM DA FILA — quem recebe a mensagem primeiro:
+     *   1. prioridade ALTA  (sinal forte ou conversa longa com sinal)
+     *   2. prioridade BAIXA (sinal morno: retorno, e-mail, mais adiante)
+     *   3. tem ETIQUETA, mas não virou oportunidade
+     *   4. sem etiqueta nenhuma
+     * Empate dentro do grupo: quem conversou mais tempo vai antes.
+     */
+    const leads = pendentes
+      .map((lead) => {
+        const sinais = detectarSinais(lead);
+        const nivel = nivelPrioridade(sinais, lead.duracao_ms);
+        const grupo =
+          nivel === "alta" ? 1 : nivel === "baixa" ? 2 : sinais.length > 0 ? 3 : 4;
+        return { ...lead, grupo };
+      })
+      .sort((a, b) => a.grupo - b.grupo || b.duracao_ms - a.duracao_ms)
+      .slice(0, POR_LOTE);
 
     if (leads.length === 0) {
       return NextResponse.json({ ok: true, enviados: 0, restam: 0, concluido: true });
