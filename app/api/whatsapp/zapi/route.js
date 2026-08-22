@@ -3,6 +3,7 @@ import { garantirTabelas, sql } from "@/lib/db";
 import { normalizarTelefone } from "@/lib/planilha";
 import { autorespostaLigada, responderComoSdr } from "@/lib/ia";
 import { enviarTexto } from "@/lib/whatsapp";
+import { transcreverAudio, transcricaoDisponivel } from "@/lib/transcricao";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
@@ -81,14 +82,22 @@ export async function POST(request) {
     const clienteId = rows[0]?.cliente_id;
     if (!clienteId) return NextResponse.json({ recebido: true });
 
+    // Áudio vira texto antes de gravar: assim a IA entende o que
+    // a pessoa falou em vez de pedir para ela repetir por escrito.
+    let textoFinal = texto;
+    if (midiaTipo === "audio" && midiaUrl && transcricaoDisponivel()) {
+      const falado = await transcreverAudio(midiaUrl);
+      if (falado) textoFinal = falado;
+    }
+
     await sql`
       INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto, midia_url, midia_tipo)
-      VALUES (${clienteId}, ${telefone}, 'in', ${texto}, ${midiaUrl}, ${midiaTipo});
+      VALUES (${clienteId}, ${telefone}, 'in', ${textoFinal}, ${midiaUrl}, ${midiaTipo});
     `;
 
     // A Lara só responde a texto de verdade. Mídia é registrada,
     // mas responder "[áudio recebido]" geraria resposta sem sentido.
-    const ehTextoReal = !texto.startsWith("[");
+    const ehTextoReal = !textoFinal.startsWith("[");
 
     // A Lara responde com o contexto da ligação
     if (autorespostaLigada() && ehTextoReal) {

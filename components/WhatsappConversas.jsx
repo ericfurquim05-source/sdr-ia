@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Send, ArrowLeft, MessageCircle, Sparkles, CheckCircle2, ExternalLink, Loader2,
-  Play, Pause, FileText, Download,
+  Play, Pause, FileText, Download, Rocket,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
 
@@ -160,6 +160,51 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
   const fimDaLista = useRef(null);
 
   /*
+   * Retomada em lote: pega todo mundo que conversou por telefone e
+   * ainda não recebeu mensagem, e dispara o primeiro contato.
+   * Roda em partes, mostrando o progresso, porque uma campanha
+   * grande não cabe numa requisição só.
+   */
+  const [aguardando, setAguardando] = useState(null);
+  const [retomando, setRetomando] = useState(false);
+  const [progresso, setProgresso] = useState(null);
+
+  useEffect(() => {
+    if (!conectado) return;
+    fetch("/api/whatsapp/retomar")
+      .then((r) => r.json())
+      .then((d) => setAguardando(d.aguardando ?? 0))
+      .catch(() => setAguardando(null));
+  }, [conectado]);
+
+  const retomarConversas = async () => {
+    if (!window.confirm(
+      `Enviar a primeira mensagem para ${aguardando} contatos que conversaram por telefone?`
+    )) return;
+
+    setRetomando(true);
+    let total = 0;
+    try {
+      // Envia em lotes até acabar
+      for (let volta = 0; volta < 30; volta++) {
+        const r = await fetch("/api/whatsapp/retomar", { method: "POST" });
+        const d = await r.json();
+        if (!r.ok) {
+          window.alert(d.erro || "Falha ao enviar.");
+          break;
+        }
+        total += d.enviados ?? 0;
+        setProgresso({ enviados: total, restam: d.restam ?? 0 });
+        if (d.concluido || (d.enviados ?? 0) === 0) break;
+      }
+      setAguardando(0);
+      router.refresh();
+    } finally {
+      setRetomando(false);
+    }
+  };
+
+  /*
    * Atualização automática: a conversa precisa andar sozinha, como
    * em qualquer aplicativo de mensagem. A cada 8 segundos a tela
    * busca o que chegou de novo — sem isso o usuário só veria a
@@ -224,6 +269,21 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
             : "Conecte seu número para ativar o follow-up automático."
         }
       >
+        {conectado && aguardando > 0 && (
+          <button
+            onClick={retomarConversas}
+            disabled={retomando}
+            className="btn-primario !py-2 text-xs"
+          >
+            {retomando ? (
+              <Loader2 size={13} className="animate-spin" />
+            ) : (
+              <Rocket size={13} />
+            )}
+            Retomar {aguardando} conversas
+          </button>
+        )}
+
         {conectado && (
           <span
             className="flex items-center gap-1.5 rounded-full border border-white/10 px-3 py-1.5 text-xs text-slate-500"
@@ -251,6 +311,22 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
       </PageHeader>
 
       {!conectado && <GuiaConexao />}
+
+      {progresso && (
+        <div className="card mb-4 p-4">
+          <p className="text-sm text-slate-300">
+            Enviando primeiro contato…{" "}
+            <b className="text-white">{progresso.enviados}</b> enviadas
+            {progresso.restam > 0 && (
+              <span className="text-slate-500"> · faltam {progresso.restam}</span>
+            )}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            As mensagens saem espaçadas de propósito, para proteger o número. Não feche
+            esta página.
+          </p>
+        </div>
+      )}
 
       {/* Estado real da instância, verificado na origem */}
       {conectado && canal === "zapi" && estado && !estado.conectado && (
