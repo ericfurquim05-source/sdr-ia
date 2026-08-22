@@ -1,7 +1,7 @@
 import WhatsappConversas from "@/components/WhatsappConversas";
 import { clienteLogado } from "@/lib/auth";
 import { garantirTabelas, sql } from "@/lib/db";
-import { whatsappConfigurado } from "@/lib/whatsapp";
+import { whatsappConfigurado, canalAtivo } from "@/lib/whatsapp";
 import { autorespostaLigada } from "@/lib/ia";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +15,12 @@ export default async function Whatsapp() {
   let conversas = [];
   let conectado = false;
   let iaLigada = false;
+  let canal = null;
 
   try {
     const cliente = await clienteLogado();
     conectado = whatsappConfigurado();
+    canal = canalAtivo();
     iaLigada = autorespostaLigada();
 
     if (cliente) {
@@ -59,5 +61,12 @@ export default async function Whatsapp() {
     conversas = [];
   }
 
-  return <WhatsappConversas conversas={conversas} conectado={conectado} iaLigada={iaLigada} />;
+  return (
+    <WhatsappConversas
+      conversas={conversas}
+      conectado={conectado}
+      iaLigada={iaLigada}
+      canal={canal}
+    />
+  );
 }

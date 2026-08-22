@@ -86,7 +86,7 @@ function GuiaConexao() {
   );
 }
 
-export default function WhatsappConversas({ conversas = [], conectado = false, iaLigada = false }) {
+export default function WhatsappConversas({ conversas = [], conectado = false, iaLigada = false, canal = null }) {
   const router = useRouter();
   const [ativo, setAtivo] = useState(null);
   const [texto, setTexto] = useState("");
@@ -135,7 +135,9 @@ export default function WhatsappConversas({ conversas = [], conectado = false, i
         titulo="WhatsApp"
         subtitulo={
           conectado
-            ? "Conversas reais pela API oficial da Meta."
+            ? canal === "zapi"
+              ? "Conversas reais do seu número conectado."
+              : "Conversas reais pela API oficial da Meta."
             : "Conecte seu número para ativar o follow-up automático."
         }
       >
