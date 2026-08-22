@@ -10,6 +10,7 @@ import {
 import { cobrarLigacao, saldoAtual } from "@/lib/saldo";
 import { enviarTemplate, whatsappConfigurado } from "@/lib/whatsapp";
 import { assinaturaRetellValida } from "@/lib/seguranca";
+import { detectarSinais } from "@/lib/sinais";
 
 export const maxDuration = 60;
 
@@ -159,7 +160,14 @@ async function tratarEvento(corpo) {
         ) || /error_no_audio_received|error_asr/.test(motivo);
 
       const falouDeVerdade = atendeu && segundos >= segundosMinimos;
-      const mereceFollowUp = falouDeVerdade || (atendeu && audioRuim);
+      //  3. RECUSOU educadamente: atendeu e disse "sem interesse".
+      //     Recebe uma apresentação institucional de despedida — sem
+      //     pedir nada — e fica no banco como quem já conhece a empresa.
+      const semInteresse =
+        atendeu &&
+        detectarSinais({ transcript: chamada.transcript, resumo: chamada.call_analysis?.call_summary })
+          .some((x) => x.id === "sem_interesse");
+      const mereceFollowUp = falouDeVerdade || (atendeu && audioRuim) || semInteresse;
 
       if (
         mereceFollowUp &&
@@ -180,7 +188,11 @@ async function tratarEvento(corpo) {
           await sql`
             INSERT INTO mensagens_wa (cliente_id, telefone, direcao, texto)
             VALUES (${clienteId}, ${contato.telefone}, 'out',
-              ${audioRuim ? "[follow-up: ligação com áudio ruim]" : "[follow-up: conversou e não fechou]"});
+              ${audioRuim
+                ? "[follow-up: ligação com áudio ruim]"
+                : semInteresse && !falouDeVerdade
+                  ? "[follow-up: sem interesse — apresentação]"
+                  : "[follow-up: conversou e não fechou]"});
           `;
         }
         if (envio.ok) {

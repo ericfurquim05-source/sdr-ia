@@ -68,8 +68,8 @@ export async function POST() {
   try {
     await garantirTabelas();
 
-    // Quem conversou de verdade e ainda não recebeu nada.
-    // Traz a transcrição junto para classificar a fila.
+    // Quem ATENDEU e ainda não recebeu nada. O piso de 15s corta
+    // artefatos de conexão; a classificação fina é feita abaixo.
     const { rows: pendentes } = await sql`
       SELECT DISTINCT ON (l.telefone)
              l.telefone, l.nome, l.duracao_ms::int AS duracao_ms,
@@ -77,7 +77,7 @@ export async function POST() {
       FROM ligacoes l
       WHERE l.cliente_id = ${cliente.id}
         AND l.sucesso = TRUE
-        AND l.duracao_ms >= 70000
+        AND l.duracao_ms >= 15000
         AND NOT EXISTS (
           SELECT 1 FROM mensagens_wa m
           WHERE m.cliente_id = l.cliente_id AND m.telefone = l.telefone
@@ -88,20 +88,29 @@ export async function POST() {
 
     /*
      * ORDEM DA FILA — quem recebe a mensagem primeiro:
-     *   1. prioridade ALTA  (sinal forte ou conversa longa com sinal)
-     *   2. prioridade BAIXA (sinal morno: retorno, e-mail, mais adiante)
-     *   3. tem ETIQUETA, mas não virou oportunidade
-     *   4. sem etiqueta nenhuma
+     *   1. prioridade ALTA   (sinal forte ou conversa 2min+)
+     *   2. prioridade BAIXA  (conversou 1min10+ sem recusar)
+     *   3. ÁUDIO RUIM        (falha técnica: mensagem reconhece isso)
+     *   4. SEM INTERESSE     (recebe a apresentação de despedida)
+     * Quem atendeu menos de 1min10 sem recusa e sem falha de áudio
+     * fica de fora: não houve conversa nem recusa — melhor rediscar.
      * Empate dentro do grupo: quem conversou mais tempo vai antes.
      */
     const leads = pendentes
       .map((lead) => {
         const sinais = detectarSinais(lead);
         const nivel = nivelPrioridade(sinais, lead.duracao_ms);
+        const audioRuim = sinais.some((x) => x.id === "audio_ruim");
+        const semInteresse = sinais.some((x) => x.id === "sem_interesse");
         const grupo =
-          nivel === "alta" ? 1 : nivel === "baixa" ? 2 : sinais.length > 0 ? 3 : 4;
+          nivel === "alta" ? 1
+          : nivel === "baixa" ? 2
+          : audioRuim ? 3
+          : semInteresse ? 4
+          : null; // curto demais e sem etiqueta útil: fora do lote
         return { ...lead, grupo };
       })
+      .filter((lead) => lead.grupo !== null)
       .sort((a, b) => a.grupo - b.grupo || b.duracao_ms - a.duracao_ms)
       .slice(0, POR_LOTE);
 

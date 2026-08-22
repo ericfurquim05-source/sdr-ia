@@ -138,6 +138,14 @@ export default function ChamadasReais({
       >
         <FiltroPeriodo de={de} ate={ate} horas={horas} base="/sdr-ia" extra={`&ordem=${ordem}`} />
         <a
+          href="/api/relatorio/atendidos"
+          className="btn-fantasma text-sm"
+          download
+          title="CSV com todo mundo que já atendeu: etiquetas, prioridade e resumo — sua lista morna para a próxima campanha"
+        >
+          Baixar lista quente
+        </a>
+        <a
           href="/api/relatorio/audio?dias=7"
           className="btn-fantasma text-sm"
           download
