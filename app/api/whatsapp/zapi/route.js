@@ -127,11 +127,14 @@ export async function POST(request) {
           // A IA separa a resposta com || para simular quem digita
           // várias mensagens curtas. Enviamos uma de cada vez, com
           // uma pausa curta entre elas, como uma pessoa faria.
+          // Quebra no || e TAMBÉM em qualquer quebra de linha: se a
+          // IA escrever parágrafo, ele vira balões separados em vez
+          // de chegar como um bloco de texto — bloco é cara de robô.
           const partes = String(resposta)
-            .split("||")
+            .split(/\|\||\n+/)
             .map((t) => t.trim())
             .filter(Boolean)
-            .slice(0, 4);
+            .slice(0, 3);
 
           for (let i = 0; i < partes.length; i++) {
             await enviarTexto({
@@ -148,7 +151,9 @@ export async function POST(request) {
                * proporcional ao tamanho do texto.
                */
               ritmo: {
-                delayMessage: i === 0 ? 2 + Math.floor(Math.random() * 3) : 1,
+                // Pausa de leitura antes de responder: ninguém lê e
+                // responde em 2 segundos. Entre balões, respiro maior.
+                delayMessage: i === 0 ? 5 + Math.floor(Math.random() * 4) : 2,
                 delayTyping: ritmoDeDigitacao(partes[i]),
               },
             });

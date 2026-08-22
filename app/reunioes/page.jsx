@@ -25,6 +25,7 @@ export default async function Reunioes() {
           e.telefone,
           e.inicio,
           e.criado_em,
+          e.briefing,
           l.id            AS ligacao_id,
           l.nome          AS lead_nome,
           l.duracao_ms::int AS duracao_ms,
@@ -50,6 +51,7 @@ export default async function Reunioes() {
         titulo: r.titulo,
         origem: r.origem,
         telefone: r.telefone,
+        briefing: r.briefing,
         inicio: r.inicio.toISOString(),
         criadoEm: r.criado_em.toISOString(),
         ligacao: r.ligacao_id

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import {
   Sparkles, CalendarCheck, Phone, ExternalLink, Clock, ChevronDown,
+  NotebookPen, Loader2,
 } from "lucide-react";
 import { PageHeader } from "@/components/Interface";
 import PlayerAudio from "@/components/PlayerAudio";
@@ -32,6 +33,67 @@ function Transcricao({ texto }) {
           </p>
         );
       })}
+    </div>
+  );
+}
+
+/*
+ * A cola do Eric: o resumo pré-reunião gerado pela IA a partir da
+ * ligação + conversa do WhatsApp. Nasce sozinho quando a Lara marca
+ * pelo WhatsApp; o botão gera para as marcadas por telefone e
+ * atualiza quando a conversa evoluiu depois.
+ */
+function ColaReuniao({ reuniao }) {
+  const [texto, setTexto] = useState(reuniao.briefing || null);
+  const [gerando, setGerando] = useState(false);
+  const [erro, setErro] = useState(null);
+
+  const gerar = async () => {
+    setGerando(true);
+    setErro(null);
+    try {
+      const r = await fetch("/api/reunioes/briefing", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ eventoId: reuniao.id }),
+      });
+      const d = await r.json();
+      if (!r.ok) setErro(d.erro || "Não deu para gerar agora.");
+      else setTexto(d.briefing);
+    } catch {
+      setErro("Falha de conexão.");
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-xl border border-brand-cyan/30 bg-brand-cyan/5 p-3">
+      <div className="mb-1 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-1 text-xs font-semibold text-brand-cyan">
+          <NotebookPen size={12} /> Cola pra reunião
+        </p>
+        <button onClick={gerar} disabled={gerando} className="btn-fantasma px-2.5 py-1 text-xs">
+          {gerando ? (
+            <>
+              <Loader2 size={11} className="animate-spin" /> preparando...
+            </>
+          ) : texto ? (
+            "Atualizar"
+          ) : (
+            "Preparar reunião"
+          )}
+        </button>
+      </div>
+      {texto ? (
+        <p className="whitespace-pre-line text-sm leading-relaxed text-slate-200">{texto}</p>
+      ) : (
+        <p className="text-xs text-slate-500">
+          {erro ||
+            "Um resumo curto de tudo que o lead falou — na ligação e no WhatsApp — pra você ler 2 minutos antes de entrar na chamada."}
+        </p>
+      )}
+      {erro && texto && <p className="mt-1 text-xs text-red-400">{erro}</p>}
     </div>
   );
 }
@@ -166,6 +228,7 @@ export default function ReunioesLista({ reunioes = [] }) {
 
             {aberta === r.id && (
               <div className="flex flex-col gap-3 border-t border-white/5 p-4">
+                <ColaReuniao reuniao={r} />
                 {r.ligacao ? (
                   <>
                     <p className="flex items-center gap-2 text-xs text-slate-500">
